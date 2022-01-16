@@ -17,7 +17,7 @@ pub(crate) enum Expr {
 pub(crate) enum UnaryOpcode {
     LinkTo,
     InCategory,
-    Talk,
+    Toggle,
     Prefix,
 }
 

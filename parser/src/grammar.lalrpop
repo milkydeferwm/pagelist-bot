@@ -41,7 +41,7 @@ Constraint: Constraint = {
 UnaryOp: UnaryOpcode = {
     "linkto" => UnaryOpcode::LinkTo,
     "incat" => UnaryOpcode::InCategory,
-    "talk" => UnaryOpcode::Talk,
+    "toggle" => UnaryOpcode::Toggle,
     "prefix" => UnaryOpcode::Prefix,
 }
 

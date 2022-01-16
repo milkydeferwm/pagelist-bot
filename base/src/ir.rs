@@ -25,7 +25,7 @@ pub enum Instruction {
     // Unary
     LinkTo { dest: i32, op: i32, cs: SetConstraint },
     InCat { dest: i32, op: i32, cs: SetConstraint },
-    Talk { dest: i32, op: i32 },
+    Toggle { dest: i32, op: i32 },
     Prefix { dest: i32, op: i32 },
     // Primitive
     Set { dest: i32, titles: Vec<String>, cs: SetConstraint },
@@ -44,7 +44,7 @@ impl Instruction {
 
     pub fn is_unary_op(&self) -> bool {
         match *self {
-            Self::LinkTo {..} | Self::InCat {..} | Self::Talk {..} | Self::Prefix {..} => true,
+            Self::LinkTo {..} | Self::InCat {..} | Self::Toggle {..} | Self::Prefix {..} => true,
             _ => false,
         }
     }
@@ -71,7 +71,7 @@ impl Instruction {
             Self::Xor { dest, .. } => dest,
             Self::LinkTo { dest, .. } => dest,
             Self::InCat { dest, .. } => dest,
-            Self::Talk { dest, ..} => dest,
+            Self::Toggle { dest, ..} => dest,
             Self::Prefix { dest, .. } => dest,
             Self::Set { dest, .. } => dest,
             Self::Nop { dest, .. } => dest,
@@ -86,7 +86,7 @@ impl Instruction {
             Self::Xor { dest, .. } => *dest = new_dest,
             Self::LinkTo { dest, .. } => *dest = new_dest,
             Self::InCat { dest, .. } => *dest = new_dest,
-            Self::Talk { dest, ..} => *dest = new_dest,
+            Self::Toggle { dest, ..} => *dest = new_dest,
             Self::Prefix { dest, .. } => *dest = new_dest,
             Self::Set { dest, .. } => *dest = new_dest,
             Self::Nop { dest, .. } => *dest = new_dest,

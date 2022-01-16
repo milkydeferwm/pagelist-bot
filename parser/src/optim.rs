@@ -61,16 +61,16 @@ pub(crate) fn merge_constraints(orig: &SetConstraint, other: &SetConstraint) -> 
     Ok(SetConstraint { ns: merged_ns, depth: merged_depth })
 }
 
-/// Removes consecutive `Talk` instructions
+/// Removes consecutive `Toggle` instructions
 pub(crate) fn remove_redundent_talk(ir: &mut Vec<Instruction>) {
     // iterate through every instruction
-    // if we encounter a `Talk { dest, op }`, check the corresponding instruction whose `dest` is the aforementioned `Talk` instruction's op
-    // if that instruction is also a `Talk { dest2, op2 }` i.e. `dest2 == op`
+    // if we encounter a `Toggle { dest, op }`, check the corresponding instruction whose `dest` is the aforementioned `Toggle` instruction's op
+    // if that instruction is also a `Toggle { dest2, op2 }` i.e. `dest2 == op`
     // change the two instructions into `Nop { dest, op }` instructions
     for idx in 0..ir.len() {
-        if let Instruction::Talk { dest, op } = ir[idx] {
+        if let Instruction::Toggle { dest, op } = ir[idx] {
             if let Ok(idx2) = ir.binary_search_by(|probe| probe.get_dest().cmp(&op)) {
-                if let Instruction::Talk { dest: dest2, op: op2 } = ir[idx2] {
+                if let Instruction::Toggle { dest: dest2, op: op2 } = ir[idx2] {
                     // change instructions
                     let inst1 = Instruction::Nop { dest, op };
                     let inst2 = Instruction::Nop { dest: dest2, op: op2 };
@@ -111,7 +111,7 @@ pub(crate) fn remove_empty_ns(ir: &mut Vec<Instruction>) {
                         }
                         Instruction::LinkTo { dest, op, .. } |
                         Instruction::InCat { dest, op, .. } |
-                        Instruction::Talk { dest, op } |
+                        Instruction::Toggle { dest, op } |
                         Instruction::Prefix { dest, op } => {
                             let emptyinst = Instruction::Nop { dest: *dest, op: *op };
                             stack.push(*op);

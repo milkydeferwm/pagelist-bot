@@ -41,7 +41,7 @@ fn ir_helper(ast: &Box<Expr>, mut reg_id: i32) -> PLBotParseResult {
                 instruct = match *op {
                     UnaryOpcode::LinkTo => Instruction::LinkTo{ dest: reg_id, op: reg_id - 1, cs: SetConstraint { ns: None, depth: None } },
                     UnaryOpcode::InCategory => Instruction::InCat{ dest: reg_id, op: reg_id - 1, cs: SetConstraint { ns: None, depth: Some(1) } },
-                    UnaryOpcode::Talk => Instruction::Talk{ dest: reg_id, op: reg_id - 1 },
+                    UnaryOpcode::Toggle => Instruction::Toggle{ dest: reg_id, op: reg_id - 1 },
                     UnaryOpcode::Prefix => Instruction::Prefix{ dest: reg_id, op: reg_id - 1 },
                 };
                 inst.push(instruct);
@@ -100,7 +100,7 @@ fn ir_helper(ast: &Box<Expr>, mut reg_id: i32) -> PLBotParseResult {
                                 let new_inst = Instruction::InCat { dest: *dest, op: *op, cs: new_constraint };
                                 inst[idx] = new_inst;
                             }
-                            Instruction::Talk { dest: _, op } => {
+                            Instruction::Toggle { dest: _, op } => {
                                 // switch every ns constraint, then pass through this instruction
                                 let ns = con.ns.clone();
                                 
