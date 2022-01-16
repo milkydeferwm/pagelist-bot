@@ -6,8 +6,7 @@ edition = "2021"
 license = "MIT"
 
 [dependencies]
-mediawiki = { version = "^0.2", optional = true }
+plbot_base = { path = "../base" }
+mediawiki = "^0.2"
 
 [features]
-default = ["mwapi"]
-mwapi = ["mediawiki"]
