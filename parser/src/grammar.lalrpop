@@ -1,0 +1,74 @@
+use std::str::FromStr;
+use crate::ast::{Expr, UnaryOpcode, BinaryOpcode, Constraint};
+use unescape::unescape;
+
+grammar;
+
+Tier<Op, NextTier>: Box<Expr> = {
+    Tier<Op, NextTier> Op NextTier => Box::new(Expr::Binary(<>)),
+    NextTier,
+};
+
+#[inline]
+Comma<T>: Vec<T> = {
+    <items: (<T> ",")*> <last: T?> => {
+        let mut items = items;
+        items.extend(last);
+        items
+    }
+};
+
+pub(crate) Expr = Tier<ExprOp, XorFactor>;
+XorFactor = Tier<XorOp, AndFactor>;
+AndFactor = Tier<AndOp, ConstrainedTerm>;
+
+ConstrainedTerm: Box<Expr> = {
+    Term Constraint+ => Box::new(Expr::Constrained(<>)),
+    Term,
+};
+
+Term: Box<Expr> = {
+    "(" <Expr> ")",
+    "page" "(" <Comma<StringLit>> ")" => Box::new(Expr::Page(<>)),
+    <UnaryOp> "(" <Expr> ")" => Box::new(Expr::Unary(<>)),
+};
+
+Constraint: Constraint = {
+    "." "ns" "(" <Comma<Num>> ")" => Constraint::Ns(<>),
+    "." "depth" "(" <Num> ")" => Constraint::Depth(<>),
+};
+
+UnaryOp: UnaryOpcode = {
+    "linkto" => UnaryOpcode::LinkTo,
+    "incat" => UnaryOpcode::InCategory,
+    "talk" => UnaryOpcode::Talk,
+    "prefix" => UnaryOpcode::Prefix,
+}
+
+ExprOp: BinaryOpcode = {
+    "+" => BinaryOpcode::Or,
+    "-" => BinaryOpcode::Exclude,
+};
+
+XorOp: BinaryOpcode = {
+    "^" => BinaryOpcode::Xor,
+};
+
+AndOp: BinaryOpcode = {
+    "&" => BinaryOpcode::And,
+};
+
+Num: i32 = {
+    r"[0-9]+" => i32::from_str(<>).unwrap(),
+};
+
+StringLit: String = {
+    r#""([^"\\]|\\[0nrt"\\])*""# => {
+        let unescaped = unescape(<>).unwrap();
+        let mut iter = unescaped.chars();
+        assert_eq!(iter.next(), Some('\"'));
+        let mut stripped: String = iter.collect();
+        assert_eq!(stripped.pop(), Some('\"'));
+        stripped
+    },
+};

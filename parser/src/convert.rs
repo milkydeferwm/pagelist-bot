@@ -1,0 +1,141 @@
+//! This module converts the optimized AST
+//! into generic Intermediate Representation (IR)
+//! defined in `plbot_base`
+
+use std::collections::HashSet;
+
+use crate::{ast::Expr, ast::UnaryOpcode, ast::BinaryOpcode, PLBotParseResult, optim::merge_constraints, optim::construct_constraints_from_vec, error::SemanticError};
+use plbot_base::ir::{Instruction, SetConstraint};
+
+pub(crate) fn to_ir(ast: &Box<Expr>) -> PLBotParseResult {
+    ir_helper(ast, 0)
+}
+
+fn ir_helper(ast: &Box<Expr>, mut reg_id: i32) -> PLBotParseResult {
+    // do a postorder dfs to the tree
+    // find any semantic error
+    let mut stack: Vec<&Box<Expr>> = Vec::new();
+    let mut root = Some(ast);
+    let mut inst: Vec<Instruction> = Vec::new();
+
+    while let Some(node) = root {
+        stack.push(node);
+        match &**node {
+            Expr::Binary(..) => root = None,
+            Expr::Unary(_, c) => root = Some(c),
+            Expr::Constrained(c, _) => root = Some(c),
+            Expr::Page(..) => root = None,
+        };
+    }
+
+    while !stack.is_empty() {
+        let node = stack.pop().unwrap();
+        let instruct: Instruction;
+        match &**node {
+            Expr::Page(l) => {
+                instruct = Instruction::Set{ dest:reg_id, titles: l.to_owned(), cs: SetConstraint { ns: None, depth: None } };
+                inst.push(instruct);
+                reg_id += 1;
+            },
+            Expr::Unary(op, _) => {
+                instruct = match *op {
+                    UnaryOpcode::LinkTo => Instruction::LinkTo{ dest: reg_id, op: reg_id - 1, cs: SetConstraint { ns: None, depth: None } },
+                    UnaryOpcode::InCategory => Instruction::InCat{ dest: reg_id, op: reg_id - 1, cs: SetConstraint { ns: None, depth: Some(1) } },
+                    UnaryOpcode::Talk => Instruction::Talk{ dest: reg_id, op: reg_id - 1 },
+                    UnaryOpcode::Prefix => Instruction::Prefix{ dest: reg_id, op: reg_id - 1 },
+                };
+                inst.push(instruct);
+                reg_id += 1;
+            },
+            Expr::Binary(l, op, r) => {
+                let mut lop = ir_helper(l, reg_id)?;
+                let left_dest = lop.1;
+                reg_id = left_dest + 1;
+                inst.append(&mut lop.0);
+                
+                let mut rop = ir_helper(r, reg_id)?;
+                let right_dest = rop.1;
+                reg_id = right_dest + 1;
+                inst.append(&mut rop.0);
+
+                instruct = match *op {
+                    BinaryOpcode::And => Instruction::And{ dest: reg_id, op1: left_dest, op2: right_dest },
+                    BinaryOpcode::Or => Instruction::Or{ dest: reg_id, op1: left_dest, op2: right_dest },
+                    BinaryOpcode::Exclude => Instruction::Exclude{ dest: reg_id, op1: left_dest, op2: right_dest },
+                    BinaryOpcode::Xor => Instruction::Xor{ dest: reg_id, op1: left_dest, op2: right_dest },
+                };
+                inst.push(instruct);
+                reg_id += 1;
+            },
+            Expr::Constrained(_, c) => {
+                // apply the constraint to the corresponding instruction
+                // the tree formulation ensures that this would always be the last element of `inst`, aka `reg_id - 1`
+                // the instruction construction process ensures that `inst` is sorted by `dest` field in ascending order
+                let constraint_struct = construct_constraints_from_vec(c)?;
+                let mut stack: Vec<(i32, SetConstraint)> = vec![(reg_id - 1, constraint_struct)];
+                while let Some((target, con)) = stack.pop() {
+                    let ires = inst.binary_search_by(|probe| probe.get_dest().cmp(&target));
+                    if let Ok(idx) = ires {
+                        match &mut inst[idx] {
+                            Instruction::And { dest: _, op1, op2 } |
+                            Instruction::Or { dest: _, op1, op2 } |
+                            Instruction::Exclude { dest: _, op1, op2 } |
+                            Instruction::Xor { dest: _, op1, op2 } => {
+                                // If that instruction is a binary set operation, send the constraint into both branches
+                                stack.push((*op2, con.clone()));
+                                stack.push((*op1, con.clone()));
+                            },
+                            Instruction::LinkTo { dest, op, cs } => {
+                                // rejects if constraint has a depth field, else merge
+                                if con.depth.is_some() {
+                                    return Err(Box::new(SemanticError{ msg: String::from("invalid depth constraint") }));
+                                }
+                                let new_constraint = merge_constraints(&cs, &con)?;
+                                let new_inst = Instruction::LinkTo { dest: *dest, op: *op, cs: new_constraint };
+                                inst[idx] = new_inst;
+                            }
+                            Instruction::InCat { dest, op, cs } => {
+                                // merge the constraints
+                                let new_constraint = merge_constraints(&cs, &con)?;
+                                let new_inst = Instruction::InCat { dest: *dest, op: *op, cs: new_constraint };
+                                inst[idx] = new_inst;
+                            }
+                            Instruction::Talk { dest: _, op } => {
+                                // switch every ns constraint, then pass through this instruction
+                                let ns = con.ns.clone();
+                                
+                                if ns.is_some() {
+                                    let mut ns_vec = Vec::from_iter(ns.unwrap());
+                                    for i in ns_vec.iter_mut() {
+                                        *i ^= 0b1;
+                                    }
+                                    let new_con = SetConstraint { ns: Some(HashSet::from_iter(ns_vec.into_iter())), depth: con.depth };
+                                    stack.push((*op, new_con));
+                                } else {
+                                    stack.push((*op, con.clone()));
+                                }
+                            }
+                            Instruction::Prefix { dest: _, op } | Instruction::Nop { dest: _, op } => {
+                                // pass through this instruction
+                                stack.push((*op, con.clone()));
+                            }
+                            Instruction::Set { dest, titles, cs } => {
+                                // rejects if constraint has a depth field, else merge
+                                if con.depth.is_some() {
+                                    return Err(Box::new(SemanticError{ msg: String::from("invalid depth constraint") }));
+                                }
+                                let new_constraint = merge_constraints(&cs, &con)?;
+                                let new_inst = Instruction::Set { dest: *dest, titles: (*titles).clone(), cs: new_constraint };
+                                inst[idx] = new_inst;
+                            },
+                        }
+                    } else {
+                        return Err(Box::new(SemanticError{ msg: String::from("internal instruction not found while generating") }));
+                    }
+                }
+            }
+        }
+    }
+
+    Ok((inst, reg_id - 1))
+}

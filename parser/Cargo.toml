@@ -1,0 +1,18 @@
+[package]
+name = "plbot_parser"
+version = "0.0.1"
+edition = "2021"
+
+license = "MIT"
+
+build = "build.rs"
+
+[dependencies]
+plbot_base = { path = "../base" }
+
+lalrpop-util = { version = "^0.19", features = [ "lexer" ] }
+regex = "1"
+unescape = "^0.1"
+
+[build-dependencies]
+lalrpop = "^0.19"
