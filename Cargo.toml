@@ -7,4 +7,5 @@ edition = "2021"
 
 [dependencies]
 plbot_parser = { path = "parser", version = "0.0.1" }
+plbot_solver = { path = "solver", version = "0.0.1" }
 mediawiki = "^0.2"
