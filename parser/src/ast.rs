@@ -1,6 +1,8 @@
 //! This file lists the data structures used in
 //! abstract syntax tree (AST) building.
 
+use plbot_base::{NamespaceID, ir::DepthNum};
+
 #[derive(Debug, Clone, Eq, PartialEq)]
 pub(crate) enum Expr {
     // The ultimate primitive
@@ -31,6 +33,6 @@ pub(crate) enum BinaryOpcode {
 
 #[derive(Debug, Clone, Eq, PartialEq)]
 pub(crate) enum Constraint {
-    Ns(Vec<i32>),
-    Depth(i32),
+    Ns(Vec<NamespaceID>),
+    Depth(DepthNum),
 }

@@ -4,13 +4,14 @@
 
 use std::collections::HashSet;
 
-use plbot_base::ir::{Instruction, SetConstraint};
+use plbot_base::ir::{Instruction, SetConstraint, RegID, DepthNum};
+use plbot_base::NamespaceID;
 
 use crate::{ast::*, error::SemanticError};
 
 pub(crate) fn construct_constraints_from_vec(orig: &Vec<Constraint>) -> Result<SetConstraint, SemanticError> {
-    let mut con_dep: Option<i32> = None;
-    let mut con_ns_set: Option<HashSet<i32>> = None;
+    let mut con_dep: Option<DepthNum> = None;
+    let mut con_ns_set: Option<HashSet<NamespaceID>> = None;
 
     for c in orig {
         match &*c {
@@ -96,7 +97,7 @@ pub(crate) fn remove_empty_ns(ir: &mut Vec<Instruction>) {
     for idx in 0..ir.len() {
         if ir[idx].ns_empty() {
             // replace the whole subtree with nop
-            let mut stack: Vec<i32> = Vec::new();
+            let mut stack: Vec<RegID> = Vec::new();
             stack.push(ir[idx].get_dest());
             while let Some(opdest) = stack.pop() {
                 // search for the instruction with the specified `dest`

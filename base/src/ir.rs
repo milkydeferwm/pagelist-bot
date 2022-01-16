@@ -7,30 +7,34 @@
 //! 
 //! Just like the intermediate representation (IR) in a compiler.
 
+use crate::NamespaceID;
 use std::collections::HashSet;
+
+pub type RegID = u64;
+pub type DepthNum = i32;
 
 #[derive(Debug, Clone)]
 pub struct SetConstraint {
-    pub ns: Option<HashSet<i32>>,
-    pub depth: Option<i32>,
+    pub ns: Option<HashSet<NamespaceID>>,
+    pub depth: Option<DepthNum>,
 }
 
 #[derive(Debug, Clone)]
 pub enum Instruction {
     // Binary
-    And { dest: i32, op1: i32, op2: i32 },
-    Or { dest: i32, op1: i32, op2: i32 },
-    Exclude { dest: i32, op1: i32, op2: i32 },
-    Xor { dest: i32, op1: i32, op2: i32 },
+    And { dest: RegID, op1: RegID, op2: RegID },
+    Or { dest: RegID, op1: RegID, op2: RegID },
+    Exclude { dest: RegID, op1: RegID, op2: RegID },
+    Xor { dest: RegID, op1: RegID, op2: RegID },
     // Unary
-    LinkTo { dest: i32, op: i32, cs: SetConstraint },
-    InCat { dest: i32, op: i32, cs: SetConstraint },
-    Toggle { dest: i32, op: i32 },
-    Prefix { dest: i32, op: i32 },
+    LinkTo { dest: RegID, op: RegID, cs: SetConstraint },
+    InCat { dest: RegID, op: RegID, cs: SetConstraint },
+    Toggle { dest: RegID, op: RegID },
+    Prefix { dest: RegID, op: RegID },
     // Primitive
-    Set { dest: i32, titles: Vec<String>, cs: SetConstraint },
+    Set { dest: RegID, titles: Vec<String>, cs: SetConstraint },
     // Null
-    Nop { dest: i32, op: i32 },
+    Nop { dest: RegID, op: RegID },
 }
 
 impl Instruction {
@@ -63,7 +67,7 @@ impl Instruction {
         }
     }
 
-    pub fn get_dest(&self) -> i32 {
+    pub fn get_dest(&self) -> RegID {
         match *self {
             Self::And { dest, .. } => dest,
             Self::Or { dest, .. } => dest,
@@ -78,7 +82,7 @@ impl Instruction {
         }
     }
 
-    pub fn set_dest(&mut self, new_dest: i32) {
+    pub fn set_dest(&mut self, new_dest: RegID) {
         match self {
             Self::And { dest, .. } => *dest = new_dest,
             Self::Or { dest, .. } => *dest = new_dest,

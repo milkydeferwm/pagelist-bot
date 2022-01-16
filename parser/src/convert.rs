@@ -5,13 +5,13 @@
 use std::collections::HashSet;
 
 use crate::{ast::Expr, ast::UnaryOpcode, ast::BinaryOpcode, PLBotParseResult, optim::merge_constraints, optim::construct_constraints_from_vec, error::SemanticError};
-use plbot_base::ir::{Instruction, SetConstraint};
+use plbot_base::ir::{Instruction, SetConstraint, RegID};
 
 pub(crate) fn to_ir(ast: &Box<Expr>) -> PLBotParseResult {
     ir_helper(ast, 0)
 }
 
-fn ir_helper(ast: &Box<Expr>, mut reg_id: i32) -> PLBotParseResult {
+fn ir_helper(ast: &Box<Expr>, mut reg_id: RegID) -> PLBotParseResult {
     // do a postorder dfs to the tree
     // find any semantic error
     let mut stack: Vec<&Box<Expr>> = Vec::new();
@@ -72,7 +72,7 @@ fn ir_helper(ast: &Box<Expr>, mut reg_id: i32) -> PLBotParseResult {
                 // the tree formulation ensures that this would always be the last element of `inst`, aka `reg_id - 1`
                 // the instruction construction process ensures that `inst` is sorted by `dest` field in ascending order
                 let constraint_struct = construct_constraints_from_vec(c)?;
-                let mut stack: Vec<(i32, SetConstraint)> = vec![(reg_id - 1, constraint_struct)];
+                let mut stack: Vec<(RegID, SetConstraint)> = vec![(reg_id - 1, constraint_struct)];
                 while let Some((target, con)) = stack.pop() {
                     let ires = inst.binary_search_by(|probe| probe.get_dest().cmp(&target));
                     if let Ok(idx) = ires {
