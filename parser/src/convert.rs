@@ -40,7 +40,7 @@ fn ir_helper(ast: &Box<Expr>, mut reg_id: RegID) -> PLBotParseResult {
             Expr::Unary(op, _) => {
                 instruct = match *op {
                     UnaryOpcode::LinkTo => Instruction::LinkTo{ dest: reg_id, op: reg_id - 1, cs: SetConstraint { ns: None, depth: None } },
-                    UnaryOpcode::InCategory => Instruction::InCat{ dest: reg_id, op: reg_id - 1, cs: SetConstraint { ns: None, depth: Some(1) } },
+                    UnaryOpcode::InCategory => Instruction::InCat{ dest: reg_id, op: reg_id - 1, cs: SetConstraint { ns: None, depth: None } },
                     UnaryOpcode::Toggle => Instruction::Toggle{ dest: reg_id, op: reg_id - 1 },
                     UnaryOpcode::Prefix => Instruction::Prefix{ dest: reg_id, op: reg_id - 1 },
                 };

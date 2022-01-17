@@ -60,7 +60,7 @@ AndOp: BinaryOpcode = {
 };
 
 DepthLayerNum: DepthNum = {
-    r"[0-9]+" => DepthNum::from_str(<>).unwrap(),
+    r"-?[0-9]+" => DepthNum::from_str(<>).unwrap(),
 };
 
 NsNum: NamespaceID = {
