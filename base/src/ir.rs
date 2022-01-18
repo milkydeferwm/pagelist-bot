@@ -11,7 +11,7 @@ use crate::NamespaceID;
 use std::collections::HashSet;
 
 pub type RegID = u64;
-pub type DepthNum = i32;
+pub type DepthNum = i64;
 
 #[derive(Debug, Clone)]
 pub struct SetConstraint {
