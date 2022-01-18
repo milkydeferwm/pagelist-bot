@@ -1,5 +1,4 @@
 use crate::ast::{Expr, UnaryOpcode, BinaryOpcode, Constraint};
-use plbot_base::{NamespaceID, ir::DepthNum};
 use std::str::FromStr;
 use unescape::unescape;
 
@@ -35,8 +34,8 @@ Term: Box<Expr> = {
 };
 
 Constraint: Constraint = {
-    "." "ns" "(" <Comma<NsNum>> ")" => Constraint::Ns(<>),
-    "." "depth" "(" <DepthLayerNum> ")" => Constraint::Depth(<>),
+    "." "ns" "(" <Comma<Num>> ")" => Constraint::Ns(<>),
+    "." "depth" "(" <Num> ")" => Constraint::Depth(<>),
 };
 
 UnaryOp: UnaryOpcode = {
@@ -59,12 +58,8 @@ AndOp: BinaryOpcode = {
     "&" => BinaryOpcode::And,
 };
 
-DepthLayerNum: DepthNum = {
-    r"-?[0-9]+" => DepthNum::from_str(<>).unwrap(),
-};
-
-NsNum: NamespaceID = {
-    r"[0-9]+" => NamespaceID::from_str(<>).unwrap(),
+Num: i64 = {
+    r"-?[0-9]+" => i64::from_str(<>).unwrap(),
 }
 
 StringLit: String = {
