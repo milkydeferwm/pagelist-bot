@@ -102,7 +102,7 @@ fn ir_helper(ast: &Box<Expr>, mut reg_id: RegID) -> PLBotParseResult {
                                     return Err(Box::new(SemanticError{ msg: String::from("invalid constraint") }));
                                 }
                                 let new_constraint = merge_constraints(&cs, &con)?;
-                                let new_inst = Instruction::LinkTo { dest: *dest, op: *op, cs: new_constraint };
+                                let new_inst = Instruction::EmbeddedIn { dest: *dest, op: *op, cs: new_constraint };
                                 inst[idx] = new_inst;
                             }
                             Instruction::InCat { dest, op, cs } => {
