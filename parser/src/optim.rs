@@ -4,14 +4,18 @@
 
 use std::collections::HashSet;
 
-use plbot_base::ir::{Instruction, SetConstraint, RegID, DepthNum};
+use plbot_base::ir::{Instruction, SetConstraint, RegID, DepthNum, RedirectStrategy};
 use plbot_base::NamespaceID;
 
 use crate::{ast::*, error::SemanticError};
 
+/// Convert a `Vec` of `Constraint`s into a `SetConstraint`
+/// Merge all `Ns` constraints (using intersection), and reject any other duplicate-and-confilcting constraints
 pub(crate) fn construct_constraints_from_vec(orig: &Vec<Constraint>) -> Result<SetConstraint, SemanticError> {
     let mut con_dep: Option<DepthNum> = None;
     let mut con_ns_set: Option<HashSet<NamespaceID>> = None;
+    let mut con_redir: Option<RedirectStrategy> = None;
+    let mut con_directlink: Option<bool> = None;
 
     for c in orig {
         match &*c {
@@ -30,17 +34,38 @@ pub(crate) fn construct_constraints_from_vec(orig: &Vec<Constraint>) -> Result<S
                     con_dep = Some(*d);
                 } else {
                     let n = con_dep.unwrap();
-                    if n != *d {
+                    if n != *d && (n >= 0 || *d >= 0) { // Disallow different depth constraints, except they are both negative
                         return Err(SemanticError{ msg: "conflict depth".to_string() });
                     }
                 }
             }
+            Constraint::Redir(s) => {
+                if con_redir.is_none() {
+                    con_redir = Some(*s);
+                } else {
+                    let ss = con_redir.unwrap();
+                    if ss != *s {
+                        return Err(SemanticError{ msg: "conflict redirect strategy".to_string() });
+                    }
+                }
+            },
+            Constraint::DirectLink(s) => {
+                if con_directlink.is_none() {
+                    con_directlink = Some(*s);
+                } else {
+                    let ss = con_directlink.unwrap();
+                    if ss != *s {
+                        return Err(SemanticError{ msg: "conflict direct link constraint".to_string() });
+                    }
+                }
+            },
         }
     }
-
-    Ok( SetConstraint { ns: con_ns_set, depth: con_dep } )
+    Ok( SetConstraint { ns: con_ns_set, depth: con_dep, redir: con_redir, directlink: con_directlink } )
 }
 
+/// Merge two `SetConstraint`s into one
+/// `Ns` will be merged by intersection, for other constraints, return error if they conflict.
 pub(crate) fn merge_constraints(orig: &SetConstraint, other: &SetConstraint) -> Result<SetConstraint, SemanticError> {
     let merged_ns = if orig.ns.is_none() {
         other.ns.clone()
@@ -53,13 +78,31 @@ pub(crate) fn merge_constraints(orig: &SetConstraint, other: &SetConstraint) -> 
         other.depth
     } else if other.depth.is_none() {
         orig.depth
-    } else if orig.depth.unwrap() == other.depth.unwrap() {
+    } else if (orig.depth.unwrap() == other.depth.unwrap()) || (orig.depth.unwrap() < 0 && other.depth.unwrap() < 0) {
         orig.depth
     } else {
         return Err(SemanticError { msg: String::from("conflict depth") });
     };
+    let merged_redir = if orig.redir.is_none() {
+        other.redir
+    } else if other.redir.is_none() {
+        orig.redir
+    } else if orig.redir.unwrap() == other.redir.unwrap() {
+        orig.redir
+    } else {
+        return Err(SemanticError { msg: String::from("conflict redirect strategy") });
+    };
+    let merged_directlink = if orig.directlink.is_none() {
+        other.directlink
+    } else if other.directlink.is_none() {
+        orig.directlink
+    } else if orig.directlink.unwrap() == other.directlink.unwrap() {
+        orig.directlink
+    } else {
+        return Err(SemanticError { msg: String::from("conflict directlink constraint") });
+    };
 
-    Ok(SetConstraint { ns: merged_ns, depth: merged_depth })
+    Ok(SetConstraint { ns: merged_ns, depth: merged_depth, redir: merged_redir, directlink: merged_directlink })
 }
 
 /// Removes consecutive `Toggle` instructions
@@ -113,14 +156,14 @@ pub(crate) fn remove_empty_ns(ir: &mut Vec<Instruction>) {
                         Instruction::LinkTo { dest, op, .. } |
                         Instruction::InCat { dest, op, .. } |
                         Instruction::Toggle { dest, op } |
-                        Instruction::Prefix { dest, op } => {
+                        Instruction::Prefix { dest, op, .. } => {
                             let emptyinst = Instruction::Nop { dest: *dest, op: *op };
                             stack.push(*op);
                             ir[idx] = emptyinst;
                         },
                         Instruction::Set { dest: _, titles, cs } => {
                             titles.clear();
-                            *cs = SetConstraint { ns: None, depth: None };
+                            *cs = SetConstraint { ns: None, depth: None, redir: None, directlink: None };
                         },
                         Instruction::Nop { dest: _, op } => {
                             stack.push(*op);

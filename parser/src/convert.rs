@@ -5,7 +5,7 @@
 use std::collections::HashSet;
 
 use crate::{ast::Expr, ast::UnaryOpcode, ast::BinaryOpcode, PLBotParseResult, optim::merge_constraints, optim::construct_constraints_from_vec, error::SemanticError};
-use plbot_base::ir::{Instruction, SetConstraint, RegID};
+use plbot_base::ir::{Instruction, SetConstraint, RegID, RedirectStrategy};
 
 pub(crate) fn to_ir(ast: &Box<Expr>) -> PLBotParseResult {
     ir_helper(ast, 0)
@@ -33,16 +33,16 @@ fn ir_helper(ast: &Box<Expr>, mut reg_id: RegID) -> PLBotParseResult {
         let instruct: Instruction;
         match &**node {
             Expr::Page(l) => {
-                instruct = Instruction::Set{ dest:reg_id, titles: l.to_owned(), cs: SetConstraint { ns: None, depth: None } };
+                instruct = Instruction::Set{ dest:reg_id, titles: l.to_owned(), cs: SetConstraint { ns: None, depth: None, redir: None, directlink: None } };
                 inst.push(instruct);
                 reg_id += 1;
             },
             Expr::Unary(op, _) => {
                 instruct = match *op {
-                    UnaryOpcode::LinkTo => Instruction::LinkTo{ dest: reg_id, op: reg_id - 1, cs: SetConstraint { ns: None, depth: None } },
-                    UnaryOpcode::InCategory => Instruction::InCat{ dest: reg_id, op: reg_id - 1, cs: SetConstraint { ns: None, depth: None } },
+                    UnaryOpcode::LinkTo => Instruction::LinkTo{ dest: reg_id, op: reg_id - 1, cs: SetConstraint { ns: None, depth: None, redir: None, directlink: None } },
+                    UnaryOpcode::InCategory => Instruction::InCat{ dest: reg_id, op: reg_id - 1, cs: SetConstraint { ns: None, depth: None, redir: None, directlink: None } },
                     UnaryOpcode::Toggle => Instruction::Toggle{ dest: reg_id, op: reg_id - 1 },
-                    UnaryOpcode::Prefix => Instruction::Prefix{ dest: reg_id, op: reg_id - 1 },
+                    UnaryOpcode::Prefix => Instruction::Prefix{ dest: reg_id, op: reg_id - 1, cs: SetConstraint { ns: None, depth: None, redir: None, directlink: None } },
                 };
                 inst.push(instruct);
                 reg_id += 1;
@@ -72,6 +72,7 @@ fn ir_helper(ast: &Box<Expr>, mut reg_id: RegID) -> PLBotParseResult {
                 // the tree formulation ensures that this would always be the last element of `inst`, aka `reg_id - 1`
                 // the instruction construction process ensures that `inst` is sorted by `dest` field in ascending order
                 let constraint_struct = construct_constraints_from_vec(c)?;
+                // rejects if ns has some negative number
                 let mut stack: Vec<(RegID, SetConstraint)> = vec![(reg_id - 1, constraint_struct)];
                 while let Some((target, con)) = stack.pop() {
                     let ires = inst.binary_search_by(|probe| probe.get_dest().cmp(&target));
@@ -95,7 +96,13 @@ fn ir_helper(ast: &Box<Expr>, mut reg_id: RegID) -> PLBotParseResult {
                                 inst[idx] = new_inst;
                             }
                             Instruction::InCat { dest, op, cs } => {
-                                // merge the constraints
+                                // rejects if constraint has a redirect constraint other than `All`, or constraint has a directlink constraint. Otherwise merge the constraints
+                                if con.redir.is_some() && con.redir.unwrap() != RedirectStrategy::All {
+                                    return Err(Box::new(SemanticError{ msg: String::from("invalid redirect strategy") }));
+                                }
+                                if con.directlink.is_some() {
+                                    return Err(Box::new(SemanticError{ msg: String::from("invalid directlink constraint") }));
+                                }
                                 let new_constraint = merge_constraints(&cs, &con)?;
                                 let new_inst = Instruction::InCat { dest: *dest, op: *op, cs: new_constraint };
                                 inst[idx] = new_inst;
@@ -109,20 +116,30 @@ fn ir_helper(ast: &Box<Expr>, mut reg_id: RegID) -> PLBotParseResult {
                                     for i in ns_vec.iter_mut() {
                                         *i ^= 0b1;
                                     }
-                                    let new_con = SetConstraint { ns: Some(HashSet::from_iter(ns_vec.into_iter())), depth: con.depth };
+                                    let new_con = SetConstraint { ns: Some(HashSet::from_iter(ns_vec.into_iter())), depth: con.depth, redir: con.redir, directlink: con.directlink };
                                     stack.push((*op, new_con));
                                 } else {
                                     stack.push((*op, con.clone()));
                                 }
                             }
-                            Instruction::Prefix { dest: _, op } | Instruction::Nop { dest: _, op } => {
+                            Instruction::Prefix { dest, op, cs } => {
+                                // rejects if constraint has a depth or directlink field
+                                // else merge
+                                if con.depth.is_some() || con.directlink.is_some() {
+                                    return Err(Box::new(SemanticError{ msg: String::from("invalid constraint") }));
+                                }
+                                let new_constraint = merge_constraints(&cs, &con)?;
+                                let new_inst = Instruction::Prefix { dest: *dest, op: *op, cs: new_constraint };
+                                inst[idx] = new_inst;
+                            },
+                            Instruction::Nop { dest: _, op } => {
                                 // pass through this instruction
                                 stack.push((*op, con.clone()));
                             }
                             Instruction::Set { dest, titles, cs } => {
-                                // rejects if constraint has a depth field, else merge
-                                if con.depth.is_some() {
-                                    return Err(Box::new(SemanticError{ msg: String::from("invalid depth constraint") }));
+                                // rejects if constraint has a depth, redir, or directlink field, else merge
+                                if con.depth.is_some() || con.redir.is_some() || con.directlink.is_some() {
+                                    return Err(Box::new(SemanticError{ msg: String::from("invalid constraint") }));
                                 }
                                 let new_constraint = merge_constraints(&cs, &con)?;
                                 let new_inst = Instruction::Set { dest: *dest, titles: (*titles).clone(), cs: new_constraint };

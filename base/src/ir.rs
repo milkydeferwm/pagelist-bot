@@ -13,10 +13,38 @@ use std::collections::HashSet;
 pub type RegID = u64;
 pub type DepthNum = i64;
 
+/// `RedirectStrategy` controls whether the query result should include redirect pages.
+/// Intended for `LinkTo` and `EmbeddedIn` instructions.
+/// 
+/// `NoRedirect`: filter out all redirect pages
+/// 
+/// `OnlyRedirect`: explicitly query for redirects
+/// 
+/// `All`: query for both redirects and non-redirects
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum RedirectStrategy {
+    NoRedirect,
+    OnlyRedirect,
+    All,
+}
+
+/// `SetConstraint` are modifier to some instructions.
+/// They are intended for `LinkTo`, `InCat`, `Prefix`, `EmbeddedIn` and `Set` instructions.
+/// They are not effective to `Toggle` and and all binary instructions.
+/// 
+/// `ns`: the namespace(s) to filter on
+/// 
+/// `depth`: query depth into the category tree. Only to be used with `InCat`.
+/// 
+/// `redir`: how to deal with redirect pages. Refer to `RedirectStrategy` for more information. Only to be used with `LinkTo`, `Prefix` and `EmbeddedIn`.
+/// 
+/// `directlink`: how to deal with linking via redirects. Only to be used with `LinkTo`.
 #[derive(Debug, Clone)]
 pub struct SetConstraint {
     pub ns: Option<HashSet<NamespaceID>>,
     pub depth: Option<DepthNum>,
+    pub redir: Option<RedirectStrategy>,
+    pub directlink: Option<bool>,
 }
 
 #[derive(Debug, Clone)]
@@ -30,7 +58,7 @@ pub enum Instruction {
     LinkTo { dest: RegID, op: RegID, cs: SetConstraint },
     InCat { dest: RegID, op: RegID, cs: SetConstraint },
     Toggle { dest: RegID, op: RegID },
-    Prefix { dest: RegID, op: RegID },
+    Prefix { dest: RegID, op: RegID, cs: SetConstraint },
     // Primitive
     Set { dest: RegID, titles: Vec<String>, cs: SetConstraint },
     // Null

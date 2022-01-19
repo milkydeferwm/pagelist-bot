@@ -1,4 +1,5 @@
 use crate::ast::{Expr, UnaryOpcode, BinaryOpcode, Constraint};
+use plbot_base::ir::RedirectStrategy;
 use std::str::FromStr;
 use unescape::unescape;
 
@@ -36,6 +37,9 @@ Term: Box<Expr> = {
 Constraint: Constraint = {
     "." "ns" "(" <Comma<Num>> ")" => Constraint::Ns(<>),
     "." "depth" "(" <Num> ")" => Constraint::Depth(<>),
+    "." "noredir" "(" ")" => Constraint::Redir(RedirectStrategy::NoRedirect),
+    "." "onlyredir" "(" ")" => Constraint::Redir(RedirectStrategy::OnlyRedirect),
+    "." "direct" "(" ")" => Constraint::DirectLink(true),
 };
 
 UnaryOp: UnaryOpcode = {
