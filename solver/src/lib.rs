@@ -10,7 +10,7 @@ mod error;
 mod api;
 
 use crate::error::SolveError;
-use plbot_base::{ir::RegID, bot::APIAssertType};
+use plbot_base::{ir::RegID, ir::RedirectStrategy, bot::APIAssertType};
 use util::{get_set_1, get_set_2};
 
 use plbot_base::{Query, ir::Instruction};
@@ -55,7 +55,22 @@ pub async fn solve_api(query: &Query, api: &Api, assert: Option<APIAssertType>) 
                 } else {
                     let mut result_set: HashSet<Title> = HashSet::new();
                     for t in set.iter() {
-                        let res_one = api::get_backlinks_one(t, api, assert, cs.ns.as_ref(), true).await?;
+                        let res_one = api::get_backlinks_one(t, api, assert, cs.ns.as_ref(), !cs.directlink.unwrap_or(false), cs.redir.unwrap_or(RedirectStrategy::All)).await?;
+                        result_set.extend(res_one);
+                    }
+                    reg.insert(*dest, result_set);
+                }
+            },
+            Instruction::EmbeddedIn { dest, op, cs } => {
+                let set = get_set_1(&reg, op)?;
+                if set.is_empty() {
+                    reg.insert(*dest, HashSet::new());
+                } else if set.len() > 1 {
+                    return Err(SolveError::QueryForMultiplePages);
+                } else {
+                    let mut result_set: HashSet<Title> = HashSet::new();
+                    for t in set.iter() {
+                        let res_one = api::get_embed_one(t, api, assert, cs.ns.as_ref(), cs.redir.unwrap_or(RedirectStrategy::All)).await?;
                         result_set.extend(res_one);
                     }
                     reg.insert(*dest, result_set);
@@ -82,7 +97,7 @@ pub async fn solve_api(query: &Query, api: &Api, assert: Option<APIAssertType>) 
                 let title_set: HashSet<Title> = set.iter().cloned().map(|title| title.into_toggle_talk()).collect();
                 reg.insert(*dest, title_set);
             },
-            Instruction::Prefix { dest, op } => {
+            Instruction::Prefix { dest, op, cs } => {
                 let set = get_set_1(&reg, op)?;
                 if set.is_empty() {
                     reg.insert(*dest, HashSet::new());
@@ -91,7 +106,7 @@ pub async fn solve_api(query: &Query, api: &Api, assert: Option<APIAssertType>) 
                 } else {
                     let mut result_set: HashSet<Title> = HashSet::new();
                     for t in set.iter() {
-                        let res_one = api::get_prefix_index_one(t, api, assert).await?;
+                        let res_one = api::get_prefix_index_one(t, api, assert, cs.ns.as_ref(), cs.redir.unwrap_or(RedirectStrategy::All)).await?;
                         result_set.extend(res_one);
                     }
                     reg.insert(*dest, result_set);

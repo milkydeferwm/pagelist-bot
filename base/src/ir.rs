@@ -28,6 +28,16 @@ pub enum RedirectStrategy {
     All,
 }
 
+impl ToString for RedirectStrategy {
+    fn to_string(&self) -> String {
+        match self {
+            RedirectStrategy::NoRedirect => String::from("nonredirects"),
+            RedirectStrategy::OnlyRedirect => String::from("redirects"),
+            RedirectStrategy::All => String::from("all"),
+        }
+    }
+}
+
 /// `SetConstraint` are modifier to some instructions.
 /// They are intended for `LinkTo`, `InCat`, `Prefix`, `EmbeddedIn` and `Set` instructions.
 /// They are not effective to `Toggle` and and all binary instructions.
