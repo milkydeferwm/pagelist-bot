@@ -40,6 +40,7 @@ fn ir_helper(ast: &Box<Expr>, mut reg_id: RegID) -> PLBotParseResult {
             Expr::Unary(op, _) => {
                 instruct = match *op {
                     UnaryOpcode::LinkTo => Instruction::LinkTo{ dest: reg_id, op: reg_id - 1, cs: SetConstraint { ns: None, depth: None, redir: None, directlink: None } },
+                    UnaryOpcode::EmbeddedIn => Instruction::EmbeddedIn{ dest: reg_id, op: reg_id - 1, cs: SetConstraint { ns: None, depth: None, redir: None, directlink: None } },
                     UnaryOpcode::InCategory => Instruction::InCat{ dest: reg_id, op: reg_id - 1, cs: SetConstraint { ns: None, depth: None, redir: None, directlink: None } },
                     UnaryOpcode::Toggle => Instruction::Toggle{ dest: reg_id, op: reg_id - 1 },
                     UnaryOpcode::Prefix => Instruction::Prefix{ dest: reg_id, op: reg_id - 1, cs: SetConstraint { ns: None, depth: None, redir: None, directlink: None } },
@@ -90,6 +91,15 @@ fn ir_helper(ast: &Box<Expr>, mut reg_id: RegID) -> PLBotParseResult {
                                 // rejects if constraint has a depth field, else merge
                                 if con.depth.is_some() {
                                     return Err(Box::new(SemanticError{ msg: String::from("invalid depth constraint") }));
+                                }
+                                let new_constraint = merge_constraints(&cs, &con)?;
+                                let new_inst = Instruction::LinkTo { dest: *dest, op: *op, cs: new_constraint };
+                                inst[idx] = new_inst;
+                            },
+                            Instruction::EmbeddedIn { dest, op, cs } => {
+                                // rejects if constraint has a depth or directlink field, else merge
+                                if con.depth.is_some() || con.directlink.is_some() {
+                                    return Err(Box::new(SemanticError{ msg: String::from("invalid constraint") }));
                                 }
                                 let new_constraint = merge_constraints(&cs, &con)?;
                                 let new_inst = Instruction::LinkTo { dest: *dest, op: *op, cs: new_constraint };

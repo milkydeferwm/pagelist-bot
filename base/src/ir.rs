@@ -56,6 +56,7 @@ pub enum Instruction {
     Xor { dest: RegID, op1: RegID, op2: RegID },
     // Unary
     LinkTo { dest: RegID, op: RegID, cs: SetConstraint },
+    EmbeddedIn { dest: RegID, op: RegID, cs: SetConstraint },
     InCat { dest: RegID, op: RegID, cs: SetConstraint },
     Toggle { dest: RegID, op: RegID },
     Prefix { dest: RegID, op: RegID, cs: SetConstraint },
@@ -76,7 +77,7 @@ impl Instruction {
 
     pub fn is_unary_op(&self) -> bool {
         match *self {
-            Self::LinkTo {..} | Self::InCat {..} | Self::Toggle {..} | Self::Prefix {..} => true,
+            Self::LinkTo {..} | Self::EmbeddedIn {..} | Self::InCat {..} | Self::Toggle {..} | Self::Prefix {..} => true,
             _ => false,
         }
     }
@@ -102,6 +103,7 @@ impl Instruction {
             Self::Exclude { dest, .. } => dest,
             Self::Xor { dest, .. } => dest,
             Self::LinkTo { dest, .. } => dest,
+            Self::EmbeddedIn { dest, .. } => dest,
             Self::InCat { dest, .. } => dest,
             Self::Toggle { dest, ..} => dest,
             Self::Prefix { dest, .. } => dest,
@@ -117,6 +119,7 @@ impl Instruction {
             Self::Exclude { dest, .. } => *dest = new_dest,
             Self::Xor { dest, .. } => *dest = new_dest,
             Self::LinkTo { dest, .. } => *dest = new_dest,
+            Self::EmbeddedIn { dest, .. } => *dest = new_dest,
             Self::InCat { dest, .. } => *dest = new_dest,
             Self::Toggle { dest, ..} => *dest = new_dest,
             Self::Prefix { dest, .. } => *dest = new_dest,
@@ -128,7 +131,9 @@ impl Instruction {
     pub fn ns_empty(&self) -> bool {
         match self {
             Self::LinkTo { cs, .. } |
+            Self::EmbeddedIn { cs, .. } |
             Self::InCat { cs, .. } |
+            Self::Prefix { cs, .. } |
             Self::Set { cs, .. } => {
                 if let Some(ns) = &cs.ns {
                     ns.is_empty()

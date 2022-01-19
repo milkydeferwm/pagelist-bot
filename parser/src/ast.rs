@@ -18,6 +18,7 @@ pub(crate) enum Expr {
 #[derive(Debug, Clone, Copy, Eq, PartialEq)]
 pub(crate) enum UnaryOpcode {
     LinkTo,
+    EmbeddedIn,
     InCategory,
     Toggle,
     Prefix,

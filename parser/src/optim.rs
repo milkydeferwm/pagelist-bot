@@ -154,6 +154,7 @@ pub(crate) fn remove_empty_ns(ir: &mut Vec<Instruction>) {
                             stack.push(*op1);
                         }
                         Instruction::LinkTo { dest, op, .. } |
+                        Instruction::EmbeddedIn { dest, op, .. } |
                         Instruction::InCat { dest, op, .. } |
                         Instruction::Toggle { dest, op } |
                         Instruction::Prefix { dest, op, .. } => {
