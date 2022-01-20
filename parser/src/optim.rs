@@ -4,7 +4,7 @@
 
 use std::collections::HashSet;
 
-use plbot_base::ir::{Instruction, SetConstraint, RegID, DepthNum, RedirectStrategy};
+use plbot_base::ir::{Instruction, SetConstraint, RegID, DepthNum, RedirectFilterStrategy};
 use plbot_base::NamespaceID;
 
 use crate::{ast::*, error::SemanticError};
@@ -14,8 +14,9 @@ use crate::{ast::*, error::SemanticError};
 pub(crate) fn construct_constraints_from_vec(orig: &Vec<Constraint>) -> Result<SetConstraint, SemanticError> {
     let mut con_dep: Option<DepthNum> = None;
     let mut con_ns_set: Option<HashSet<NamespaceID>> = None;
-    let mut con_redir: Option<RedirectStrategy> = None;
+    let mut con_redir: Option<RedirectFilterStrategy> = None;
     let mut con_directlink: Option<bool> = None;
+    let mut con_resolveredir: Option<bool> = None;
 
     for c in orig {
         match &*c {
@@ -59,9 +60,19 @@ pub(crate) fn construct_constraints_from_vec(orig: &Vec<Constraint>) -> Result<S
                     }
                 }
             },
+            Constraint::ResolveRedir(s) => {
+                if con_resolveredir.is_none() {
+                    con_resolveredir = Some(*s);
+                } else {
+                    let ss = con_resolveredir.unwrap();
+                    if ss != *s {
+                        return Err(SemanticError{ msg: "conflict resolveredir constraint".to_string() });
+                    }
+                }
+            },
         }
     }
-    Ok( SetConstraint { ns: con_ns_set, depth: con_dep, redir: con_redir, directlink: con_directlink } )
+    Ok( SetConstraint { ns: con_ns_set, depth: con_dep, redir: con_redir, directlink: con_directlink, resolveredir: con_resolveredir } )
 }
 
 /// Merge two `SetConstraint`s into one
@@ -101,8 +112,17 @@ pub(crate) fn merge_constraints(orig: &SetConstraint, other: &SetConstraint) -> 
     } else {
         return Err(SemanticError { msg: String::from("conflict directlink constraint") });
     };
+    let merged_resolveredir = if orig.resolveredir.is_none() {
+        other.resolveredir
+    } else if other.resolveredir.is_none() {
+        orig.resolveredir
+    } else if orig.resolveredir.unwrap() == other.resolveredir.unwrap() {
+        orig.resolveredir
+    } else {
+        return Err(SemanticError { msg: String::from("conflict resolveredir constraint") });
+    };
 
-    Ok(SetConstraint { ns: merged_ns, depth: merged_depth, redir: merged_redir, directlink: merged_directlink })
+    Ok(SetConstraint { ns: merged_ns, depth: merged_depth, redir: merged_redir, directlink: merged_directlink, resolveredir: merged_resolveredir })
 }
 
 /// Removes consecutive `Toggle` instructions
@@ -153,6 +173,7 @@ pub(crate) fn remove_empty_ns(ir: &mut Vec<Instruction>) {
                             stack.push(*op2);
                             stack.push(*op1);
                         }
+                        Instruction::Link { dest, op, .. } |
                         Instruction::LinkTo { dest, op, .. } |
                         Instruction::EmbeddedIn { dest, op, .. } |
                         Instruction::InCat { dest, op, .. } |
@@ -164,7 +185,7 @@ pub(crate) fn remove_empty_ns(ir: &mut Vec<Instruction>) {
                         },
                         Instruction::Set { dest: _, titles, cs } => {
                             titles.clear();
-                            *cs = SetConstraint { ns: None, depth: None, redir: None, directlink: None };
+                            *cs = SetConstraint { ns: None, depth: None, redir: None, directlink: None, resolveredir: None };
                         },
                         Instruction::Nop { dest: _, op } => {
                             stack.push(*op);

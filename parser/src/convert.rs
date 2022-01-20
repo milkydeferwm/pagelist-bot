@@ -5,7 +5,7 @@
 use std::collections::HashSet;
 
 use crate::{ast::Expr, ast::UnaryOpcode, ast::BinaryOpcode, PLBotParseResult, optim::merge_constraints, optim::construct_constraints_from_vec, error::SemanticError};
-use plbot_base::ir::{Instruction, SetConstraint, RegID, RedirectStrategy};
+use plbot_base::ir::{Instruction, SetConstraint, RegID, RedirectFilterStrategy};
 
 pub(crate) fn to_ir(ast: &Box<Expr>) -> PLBotParseResult {
     ir_helper(ast, 0)
@@ -33,17 +33,18 @@ fn ir_helper(ast: &Box<Expr>, mut reg_id: RegID) -> PLBotParseResult {
         let instruct: Instruction;
         match &**node {
             Expr::Page(l) => {
-                instruct = Instruction::Set{ dest:reg_id, titles: l.to_owned(), cs: SetConstraint { ns: None, depth: None, redir: None, directlink: None } };
+                instruct = Instruction::Set{ dest:reg_id, titles: l.to_owned(), cs: SetConstraint { ns: None, depth: None, redir: None, directlink: None, resolveredir: None } };
                 inst.push(instruct);
                 reg_id += 1;
             },
             Expr::Unary(op, _) => {
                 instruct = match *op {
-                    UnaryOpcode::LinkTo => Instruction::LinkTo{ dest: reg_id, op: reg_id - 1, cs: SetConstraint { ns: None, depth: None, redir: None, directlink: None } },
-                    UnaryOpcode::EmbeddedIn => Instruction::EmbeddedIn{ dest: reg_id, op: reg_id - 1, cs: SetConstraint { ns: None, depth: None, redir: None, directlink: None } },
-                    UnaryOpcode::InCategory => Instruction::InCat{ dest: reg_id, op: reg_id - 1, cs: SetConstraint { ns: None, depth: None, redir: None, directlink: None } },
+                    UnaryOpcode::Link => Instruction::Link{ dest: reg_id, op: reg_id - 1, cs: SetConstraint { ns: None, depth: None, redir: None, directlink: None, resolveredir: None } },
+                    UnaryOpcode::LinkTo => Instruction::LinkTo{ dest: reg_id, op: reg_id - 1, cs: SetConstraint { ns: None, depth: None, redir: None, directlink: None, resolveredir: None } },
+                    UnaryOpcode::EmbeddedIn => Instruction::EmbeddedIn{ dest: reg_id, op: reg_id - 1, cs: SetConstraint { ns: None, depth: None, redir: None, directlink: None, resolveredir: None } },
+                    UnaryOpcode::InCategory => Instruction::InCat{ dest: reg_id, op: reg_id - 1, cs: SetConstraint { ns: None, depth: None, redir: None, directlink: None, resolveredir: None } },
                     UnaryOpcode::Toggle => Instruction::Toggle{ dest: reg_id, op: reg_id - 1 },
-                    UnaryOpcode::Prefix => Instruction::Prefix{ dest: reg_id, op: reg_id - 1, cs: SetConstraint { ns: None, depth: None, redir: None, directlink: None } },
+                    UnaryOpcode::Prefix => Instruction::Prefix{ dest: reg_id, op: reg_id - 1, cs: SetConstraint { ns: None, depth: None, redir: None, directlink: None, resolveredir: None } },
                 };
                 inst.push(instruct);
                 reg_id += 1;
@@ -87,6 +88,19 @@ fn ir_helper(ast: &Box<Expr>, mut reg_id: RegID) -> PLBotParseResult {
                                 stack.push((*op2, con.clone()));
                                 stack.push((*op1, con.clone()));
                             },
+                            Instruction::Link { dest, op, cs } => {
+                                // rejects if constraint has a depth or directlink field, else merge
+                                if con.depth.is_some() || con.directlink.is_some() {
+                                    return Err(Box::new(SemanticError{ msg: String::from("invalid constraint") }));
+                                }
+                                // also rejects if constraint has a redirect constraint other than `All`
+                                if con.redir.is_some() && con.redir.unwrap() != RedirectFilterStrategy::All {
+                                    return Err(Box::new(SemanticError{ msg: String::from("invalid redirect strategy") }));
+                                }
+                                let new_constraint = merge_constraints(&cs, &con)?;
+                                let new_inst = Instruction::Link { dest: *dest, op: *op, cs: new_constraint };
+                                inst[idx] = new_inst;
+                            },
                             Instruction::LinkTo { dest, op, cs } => {
                                 // rejects if constraint has a depth field, else merge
                                 if con.depth.is_some() {
@@ -107,7 +121,7 @@ fn ir_helper(ast: &Box<Expr>, mut reg_id: RegID) -> PLBotParseResult {
                             }
                             Instruction::InCat { dest, op, cs } => {
                                 // rejects if constraint has a redirect constraint other than `All`, or constraint has a directlink constraint. Otherwise merge the constraints
-                                if con.redir.is_some() && con.redir.unwrap() != RedirectStrategy::All {
+                                if con.redir.is_some() && con.redir.unwrap() != RedirectFilterStrategy::All {
                                     return Err(Box::new(SemanticError{ msg: String::from("invalid redirect strategy") }));
                                 }
                                 if con.directlink.is_some() {
@@ -126,16 +140,16 @@ fn ir_helper(ast: &Box<Expr>, mut reg_id: RegID) -> PLBotParseResult {
                                     for i in ns_vec.iter_mut() {
                                         *i ^= 0b1;
                                     }
-                                    let new_con = SetConstraint { ns: Some(HashSet::from_iter(ns_vec.into_iter())), depth: con.depth, redir: con.redir, directlink: con.directlink };
+                                    let new_con = SetConstraint { ns: Some(HashSet::from_iter(ns_vec.into_iter())), depth: con.depth, redir: con.redir, directlink: con.directlink, resolveredir: con.resolveredir };
                                     stack.push((*op, new_con));
                                 } else {
                                     stack.push((*op, con.clone()));
                                 }
                             }
                             Instruction::Prefix { dest, op, cs } => {
-                                // rejects if constraint has a depth or directlink field
+                                // rejects if constraint has a depth, resolveredir, or directlink field
                                 // else merge
-                                if con.depth.is_some() || con.directlink.is_some() {
+                                if con.depth.is_some() || con.directlink.is_some() || con.resolveredir.is_some() {
                                     return Err(Box::new(SemanticError{ msg: String::from("invalid constraint") }));
                                 }
                                 let new_constraint = merge_constraints(&cs, &con)?;
@@ -147,8 +161,8 @@ fn ir_helper(ast: &Box<Expr>, mut reg_id: RegID) -> PLBotParseResult {
                                 stack.push((*op, con.clone()));
                             }
                             Instruction::Set { dest, titles, cs } => {
-                                // rejects if constraint has a depth, redir, or directlink field, else merge
-                                if con.depth.is_some() || con.redir.is_some() || con.directlink.is_some() {
+                                // rejects if constraint has a depth, redir, resolveredir, or directlink field, else merge
+                                if con.depth.is_some() || con.redir.is_some() || con.directlink.is_some() || con.resolveredir.is_some() {
                                     return Err(Box::new(SemanticError{ msg: String::from("invalid constraint") }));
                                 }
                                 let new_constraint = merge_constraints(&cs, &con)?;

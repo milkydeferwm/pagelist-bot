@@ -1,7 +1,7 @@
 //! This file lists the data structures used in
 //! abstract syntax tree (AST) building.
 
-use plbot_base::{NamespaceID, ir::{DepthNum, RedirectStrategy}};
+use plbot_base::{NamespaceID, ir::{DepthNum, RedirectFilterStrategy}};
 
 #[derive(Debug, Clone, Eq, PartialEq)]
 pub(crate) enum Expr {
@@ -17,6 +17,7 @@ pub(crate) enum Expr {
 
 #[derive(Debug, Clone, Copy, Eq, PartialEq)]
 pub(crate) enum UnaryOpcode {
+    Link,
     LinkTo,
     EmbeddedIn,
     InCategory,
@@ -36,6 +37,7 @@ pub(crate) enum BinaryOpcode {
 pub(crate) enum Constraint {
     Ns(Vec<NamespaceID>),
     Depth(DepthNum),
-    Redir(RedirectStrategy),
+    Redir(RedirectFilterStrategy),
     DirectLink(bool),
+    ResolveRedir(bool),
 }

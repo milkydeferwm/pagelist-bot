@@ -13,33 +13,33 @@ use std::collections::HashSet;
 pub type RegID = u64;
 pub type DepthNum = i64;
 
-/// `RedirectStrategy` controls whether the query result should include redirect pages.
+/// `RedirectFilterStrategy` controls whether the query result should include redirect pages.
 /// Intended for `LinkTo` and `EmbeddedIn` instructions.
 /// 
-/// `NoRedirect`: filter out all redirect pages
+/// `NoRedirect`: filter out all redirect pages.
 /// 
-/// `OnlyRedirect`: explicitly query for redirects
+/// `OnlyRedirect`: explicitly query for redirects.
 /// 
-/// `All`: query for both redirects and non-redirects
+/// `All`: query for both redirects and non-redirects.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum RedirectStrategy {
+pub enum RedirectFilterStrategy {
     NoRedirect,
     OnlyRedirect,
     All,
 }
 
-impl ToString for RedirectStrategy {
+impl ToString for RedirectFilterStrategy {
     fn to_string(&self) -> String {
         match self {
-            RedirectStrategy::NoRedirect => String::from("nonredirects"),
-            RedirectStrategy::OnlyRedirect => String::from("redirects"),
-            RedirectStrategy::All => String::from("all"),
+            Self::NoRedirect => String::from("nonredirects"),
+            Self::OnlyRedirect => String::from("redirects"),
+            Self::All => String::from("all"),
         }
     }
 }
 
 /// `SetConstraint` are modifier to some instructions.
-/// They are intended for `LinkTo`, `InCat`, `Prefix`, `EmbeddedIn` and `Set` instructions.
+/// They are intended for `Link`, `LinkTo`, `InCat`, `Prefix`, `EmbeddedIn` and `Set` instructions.
 /// They are not effective to `Toggle` and and all binary instructions.
 /// 
 /// `ns`: the namespace(s) to filter on
@@ -49,12 +49,15 @@ impl ToString for RedirectStrategy {
 /// `redir`: how to deal with redirect pages. Refer to `RedirectStrategy` for more information. Only to be used with `LinkTo`, `Prefix` and `EmbeddedIn`.
 /// 
 /// `directlink`: how to deal with linking via redirects. Only to be used with `LinkTo`.
+/// 
+/// `resolveredir`: If a page is a redirect, how to deal with it.
 #[derive(Debug, Clone)]
 pub struct SetConstraint {
     pub ns: Option<HashSet<NamespaceID>>,
     pub depth: Option<DepthNum>,
-    pub redir: Option<RedirectStrategy>,
+    pub redir: Option<RedirectFilterStrategy>,
     pub directlink: Option<bool>,
+    pub resolveredir: Option<bool>,
 }
 
 #[derive(Debug, Clone)]
@@ -65,6 +68,7 @@ pub enum Instruction {
     Exclude { dest: RegID, op1: RegID, op2: RegID },
     Xor { dest: RegID, op1: RegID, op2: RegID },
     // Unary
+    Link { dest: RegID, op: RegID, cs: SetConstraint },
     LinkTo { dest: RegID, op: RegID, cs: SetConstraint },
     EmbeddedIn { dest: RegID, op: RegID, cs: SetConstraint },
     InCat { dest: RegID, op: RegID, cs: SetConstraint },
@@ -112,6 +116,7 @@ impl Instruction {
             Self::Or { dest, .. } => dest,
             Self::Exclude { dest, .. } => dest,
             Self::Xor { dest, .. } => dest,
+            Self::Link { dest, .. } => dest,
             Self::LinkTo { dest, .. } => dest,
             Self::EmbeddedIn { dest, .. } => dest,
             Self::InCat { dest, .. } => dest,
@@ -128,6 +133,7 @@ impl Instruction {
             Self::Or { dest, .. } => *dest = new_dest,
             Self::Exclude { dest, .. } => *dest = new_dest,
             Self::Xor { dest, .. } => *dest = new_dest,
+            Self::Link { dest, .. } => *dest = new_dest,
             Self::LinkTo { dest, .. } => *dest = new_dest,
             Self::EmbeddedIn { dest, .. } => *dest = new_dest,
             Self::InCat { dest, .. } => *dest = new_dest,
@@ -140,6 +146,7 @@ impl Instruction {
 
     pub fn ns_empty(&self) -> bool {
         match self {
+            Self::Link { cs, .. } |
             Self::LinkTo { cs, .. } |
             Self::EmbeddedIn { cs, .. } |
             Self::InCat { cs, .. } |

@@ -10,7 +10,7 @@ mod error;
 mod api;
 
 use crate::error::SolveError;
-use plbot_base::{ir::RegID, ir::RedirectStrategy, bot::APIAssertType};
+use plbot_base::{ir::RegID, ir::RedirectFilterStrategy, bot::APIAssertType};
 use util::{get_set_1, get_set_2};
 
 use plbot_base::{Query, ir::Instruction};
@@ -46,6 +46,21 @@ pub async fn solve_api(query: &Query, api: &Api, assert: Option<APIAssertType>) 
                 let xor: HashSet<Title> = set1.symmetric_difference(set2).cloned().collect();
                 reg.insert(*dest, xor);
             },
+            Instruction::Link { dest, op, cs } => {
+                let set = get_set_1(&reg, op)?;
+                if set.is_empty() {
+                    reg.insert(*dest, HashSet::new());
+                } else if set.len() > 1 {
+                    return Err(SolveError::QueryForMultiplePages);
+                } else {
+                    let mut result_set: HashSet<Title> = HashSet::new();
+                    for t in set.iter() {
+                        let res_one = api::get_links_one(t, api, assert, cs.ns.as_ref(), cs.resolveredir.unwrap_or(false)).await?;
+                        result_set.extend(res_one);
+                    }
+                    reg.insert(*dest, result_set);
+                }
+            },
             Instruction::LinkTo { dest, op, cs } => {
                 let set = get_set_1(&reg, op)?;
                 if set.is_empty() {
@@ -55,7 +70,7 @@ pub async fn solve_api(query: &Query, api: &Api, assert: Option<APIAssertType>) 
                 } else {
                     let mut result_set: HashSet<Title> = HashSet::new();
                     for t in set.iter() {
-                        let res_one = api::get_backlinks_one(t, api, assert, cs.ns.as_ref(), !cs.directlink.unwrap_or(false), cs.redir.unwrap_or(RedirectStrategy::All)).await?;
+                        let res_one = api::get_backlinks_one(t, api, assert, cs.ns.as_ref(), !cs.directlink.unwrap_or(false), cs.redir.unwrap_or(RedirectFilterStrategy::All), cs.resolveredir.unwrap_or(false)).await?;
                         result_set.extend(res_one);
                     }
                     reg.insert(*dest, result_set);
@@ -70,7 +85,7 @@ pub async fn solve_api(query: &Query, api: &Api, assert: Option<APIAssertType>) 
                 } else {
                     let mut result_set: HashSet<Title> = HashSet::new();
                     for t in set.iter() {
-                        let res_one = api::get_embed_one(t, api, assert, cs.ns.as_ref(), cs.redir.unwrap_or(RedirectStrategy::All)).await?;
+                        let res_one = api::get_embed_one(t, api, assert, cs.ns.as_ref(), cs.redir.unwrap_or(RedirectFilterStrategy::All), cs.resolveredir.unwrap_or(false)).await?;
                         result_set.extend(res_one);
                     }
                     reg.insert(*dest, result_set);
@@ -86,7 +101,7 @@ pub async fn solve_api(query: &Query, api: &Api, assert: Option<APIAssertType>) 
                     let sub_limit = cs.depth.unwrap_or(0);
                     let mut result_set: HashSet<Title> = HashSet::new();
                     for t in set.iter() {
-                        let res_one = api::get_category_members_one(t, api, assert, cs.ns.as_ref(), sub_limit).await?;
+                        let res_one = api::get_category_members_one(t, api, assert, cs.ns.as_ref(), sub_limit, cs.resolveredir.unwrap_or(false)).await?;
                         result_set.extend(res_one);
                     }
                     reg.insert(*dest, result_set);
@@ -106,7 +121,7 @@ pub async fn solve_api(query: &Query, api: &Api, assert: Option<APIAssertType>) 
                 } else {
                     let mut result_set: HashSet<Title> = HashSet::new();
                     for t in set.iter() {
-                        let res_one = api::get_prefix_index_one(t, api, assert, cs.ns.as_ref(), cs.redir.unwrap_or(RedirectStrategy::All)).await?;
+                        let res_one = api::get_prefix_index_one(t, api, assert, cs.ns.as_ref(), cs.redir.unwrap_or(RedirectFilterStrategy::All)).await?;
                         result_set.extend(res_one);
                     }
                     reg.insert(*dest, result_set);
