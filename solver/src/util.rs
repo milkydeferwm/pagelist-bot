@@ -45,7 +45,7 @@ where
 pub(crate) fn detect_api_failure(v: &serde_json::Value) -> Result<(), SolveError> {
     if let Some(e) = v["error"].as_object() {
         let ecode = e["code"].as_str().unwrap_or("<unknown>");
-        let einfo = e["code"].as_str().unwrap_or("<unknown>");
+        let einfo = e["info"].as_str().unwrap_or("<unknown>");
         return Err(SolveError::from((String::from(ecode), String::from(einfo))));
     }
     Ok(())
