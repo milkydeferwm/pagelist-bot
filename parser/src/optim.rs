@@ -7,11 +7,11 @@ use std::collections::HashSet;
 use plbot_base::ir::{Instruction, SetConstraint, RegID, DepthNum, RedirectFilterStrategy};
 use plbot_base::NamespaceID;
 
-use crate::{ast::*, error::SemanticError};
+use crate::{ast::*, error::PLBotParserError};
 
 /// Convert a `Vec` of `Constraint`s into a `SetConstraint`
 /// Merge all `Ns` constraints (using intersection), and reject any other duplicate-and-confilcting constraints
-pub(crate) fn construct_constraints_from_vec(orig: &Vec<Constraint>) -> Result<SetConstraint, SemanticError> {
+pub(crate) fn construct_constraints_from_vec(orig: &Vec<Constraint>) -> Result<SetConstraint, PLBotParserError> {
     let mut con_dep: Option<DepthNum> = None;
     let mut con_ns_set: Option<HashSet<NamespaceID>> = None;
     let mut con_redir: Option<RedirectFilterStrategy> = None;
@@ -36,7 +36,7 @@ pub(crate) fn construct_constraints_from_vec(orig: &Vec<Constraint>) -> Result<S
                 } else {
                     let n = con_dep.unwrap();
                     if n != *d && (n >= 0 || *d >= 0) { // Disallow different depth constraints, except they are both negative
-                        return Err(SemanticError{ msg: "conflict depth".to_string() });
+                        return Err(PLBotParserError::Semantic("conflict depth".to_string()));
                     }
                 }
             }
@@ -46,7 +46,7 @@ pub(crate) fn construct_constraints_from_vec(orig: &Vec<Constraint>) -> Result<S
                 } else {
                     let ss = con_redir.unwrap();
                     if ss != *s {
-                        return Err(SemanticError{ msg: "conflict redirect strategy".to_string() });
+                        return Err(PLBotParserError::Semantic("conflict redirect strategy".to_string()));
                     }
                 }
             },
@@ -56,7 +56,7 @@ pub(crate) fn construct_constraints_from_vec(orig: &Vec<Constraint>) -> Result<S
                 } else {
                     let ss = con_directlink.unwrap();
                     if ss != *s {
-                        return Err(SemanticError{ msg: "conflict direct link constraint".to_string() });
+                        return Err(PLBotParserError::Semantic("conflict direct link constraint".to_string()));
                     }
                 }
             },
@@ -66,7 +66,7 @@ pub(crate) fn construct_constraints_from_vec(orig: &Vec<Constraint>) -> Result<S
                 } else {
                     let ss = con_resolveredir.unwrap();
                     if ss != *s {
-                        return Err(SemanticError{ msg: "conflict resolveredir constraint".to_string() });
+                        return Err(PLBotParserError::Semantic("conflict resolveredir constraint".to_string()));
                     }
                 }
             },
@@ -77,7 +77,7 @@ pub(crate) fn construct_constraints_from_vec(orig: &Vec<Constraint>) -> Result<S
 
 /// Merge two `SetConstraint`s into one
 /// `Ns` will be merged by intersection, for other constraints, return error if they conflict.
-pub(crate) fn merge_constraints(orig: &SetConstraint, other: &SetConstraint) -> Result<SetConstraint, SemanticError> {
+pub(crate) fn merge_constraints(orig: &SetConstraint, other: &SetConstraint) -> Result<SetConstraint, PLBotParserError> {
     let merged_ns = if orig.ns.is_none() {
         other.ns.clone()
     } else if other.ns.is_none() {
@@ -92,7 +92,7 @@ pub(crate) fn merge_constraints(orig: &SetConstraint, other: &SetConstraint) -> 
     } else if (orig.depth.unwrap() == other.depth.unwrap()) || (orig.depth.unwrap() < 0 && other.depth.unwrap() < 0) {
         orig.depth
     } else {
-        return Err(SemanticError { msg: String::from("conflict depth") });
+        return Err(PLBotParserError::Semantic(String::from("conflict depth")));
     };
     let merged_redir = if orig.redir.is_none() {
         other.redir
@@ -101,7 +101,7 @@ pub(crate) fn merge_constraints(orig: &SetConstraint, other: &SetConstraint) -> 
     } else if orig.redir.unwrap() == other.redir.unwrap() {
         orig.redir
     } else {
-        return Err(SemanticError { msg: String::from("conflict redirect strategy") });
+        return Err(PLBotParserError::Semantic(String::from("conflict redirect strategy")));
     };
     let merged_directlink = if orig.directlink.is_none() {
         other.directlink
@@ -110,7 +110,7 @@ pub(crate) fn merge_constraints(orig: &SetConstraint, other: &SetConstraint) -> 
     } else if orig.directlink.unwrap() == other.directlink.unwrap() {
         orig.directlink
     } else {
-        return Err(SemanticError { msg: String::from("conflict directlink constraint") });
+        return Err(PLBotParserError::Semantic(String::from("conflict directlink constraint")));
     };
     let merged_resolveredir = if orig.resolveredir.is_none() {
         other.resolveredir
@@ -119,7 +119,7 @@ pub(crate) fn merge_constraints(orig: &SetConstraint, other: &SetConstraint) -> 
     } else if orig.resolveredir.unwrap() == other.resolveredir.unwrap() {
         orig.resolveredir
     } else {
-        return Err(SemanticError { msg: String::from("conflict resolveredir constraint") });
+        return Err(PLBotParserError::Semantic(String::from("conflict resolveredir constraint")));
     };
 
     Ok(SetConstraint { ns: merged_ns, depth: merged_depth, redir: merged_redir, directlink: merged_directlink, resolveredir: merged_resolveredir })

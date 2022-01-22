@@ -4,7 +4,7 @@
 
 use std::collections::HashSet;
 
-use crate::{ast::Expr, ast::UnaryOpcode, ast::BinaryOpcode, PLBotParseResult, optim::merge_constraints, optim::construct_constraints_from_vec, error::SemanticError};
+use crate::{ast::Expr, ast::UnaryOpcode, ast::BinaryOpcode, PLBotParseResult, optim::merge_constraints, optim::construct_constraints_from_vec, error::PLBotParserError};
 use plbot_base::ir::{Instruction, SetConstraint, RegID, RedirectFilterStrategy};
 
 pub(crate) fn to_ir(ast: &Box<Expr>) -> PLBotParseResult {
@@ -91,11 +91,11 @@ fn ir_helper(ast: &Box<Expr>, mut reg_id: RegID) -> PLBotParseResult {
                             Instruction::Link { dest, op, cs } => {
                                 // rejects if constraint has a depth or directlink field, else merge
                                 if con.depth.is_some() || con.directlink.is_some() {
-                                    return Err(Box::new(SemanticError{ msg: String::from("invalid constraint") }));
+                                    return Err(PLBotParserError::Semantic(String::from("invalid constraint")));
                                 }
                                 // also rejects if constraint has a redirect constraint other than `All`
                                 if con.redir.is_some() && con.redir.unwrap() != RedirectFilterStrategy::All {
-                                    return Err(Box::new(SemanticError{ msg: String::from("invalid redirect strategy") }));
+                                    return Err(PLBotParserError::Semantic(String::from("invalid redirect strategy")));
                                 }
                                 let new_constraint = merge_constraints(&cs, &con)?;
                                 let new_inst = Instruction::Link { dest: *dest, op: *op, cs: new_constraint };
@@ -104,7 +104,7 @@ fn ir_helper(ast: &Box<Expr>, mut reg_id: RegID) -> PLBotParseResult {
                             Instruction::LinkTo { dest, op, cs } => {
                                 // rejects if constraint has a depth field, else merge
                                 if con.depth.is_some() {
-                                    return Err(Box::new(SemanticError{ msg: String::from("invalid depth constraint") }));
+                                    return Err(PLBotParserError::Semantic(String::from("invalid depth constraint")));
                                 }
                                 let new_constraint = merge_constraints(&cs, &con)?;
                                 let new_inst = Instruction::LinkTo { dest: *dest, op: *op, cs: new_constraint };
@@ -113,7 +113,7 @@ fn ir_helper(ast: &Box<Expr>, mut reg_id: RegID) -> PLBotParseResult {
                             Instruction::EmbeddedIn { dest, op, cs } => {
                                 // rejects if constraint has a depth or directlink field, else merge
                                 if con.depth.is_some() || con.directlink.is_some() {
-                                    return Err(Box::new(SemanticError{ msg: String::from("invalid constraint") }));
+                                    return Err(PLBotParserError::Semantic(String::from("invalid constraint")));
                                 }
                                 let new_constraint = merge_constraints(&cs, &con)?;
                                 let new_inst = Instruction::EmbeddedIn { dest: *dest, op: *op, cs: new_constraint };
@@ -122,10 +122,10 @@ fn ir_helper(ast: &Box<Expr>, mut reg_id: RegID) -> PLBotParseResult {
                             Instruction::InCat { dest, op, cs } => {
                                 // rejects if constraint has a redirect constraint other than `All`, or constraint has a directlink constraint. Otherwise merge the constraints
                                 if con.redir.is_some() && con.redir.unwrap() != RedirectFilterStrategy::All {
-                                    return Err(Box::new(SemanticError{ msg: String::from("invalid redirect strategy") }));
+                                    return Err(PLBotParserError::Semantic(String::from("invalid redirect strategy")));
                                 }
                                 if con.directlink.is_some() {
-                                    return Err(Box::new(SemanticError{ msg: String::from("invalid directlink constraint") }));
+                                    return Err(PLBotParserError::Semantic(String::from("invalid directlink constraint")));
                                 }
                                 let new_constraint = merge_constraints(&cs, &con)?;
                                 let new_inst = Instruction::InCat { dest: *dest, op: *op, cs: new_constraint };
@@ -150,7 +150,7 @@ fn ir_helper(ast: &Box<Expr>, mut reg_id: RegID) -> PLBotParseResult {
                                 // rejects if constraint has a depth, resolveredir, or directlink field
                                 // else merge
                                 if con.depth.is_some() || con.directlink.is_some() || con.resolveredir.is_some() {
-                                    return Err(Box::new(SemanticError{ msg: String::from("invalid constraint") }));
+                                    return Err(PLBotParserError::Semantic(String::from("invalid constraint")));
                                 }
                                 let new_constraint = merge_constraints(&cs, &con)?;
                                 let new_inst = Instruction::Prefix { dest: *dest, op: *op, cs: new_constraint };
@@ -163,7 +163,7 @@ fn ir_helper(ast: &Box<Expr>, mut reg_id: RegID) -> PLBotParseResult {
                             Instruction::Set { dest, titles, cs } => {
                                 // rejects if constraint has a depth, redir, resolveredir, or directlink field, else merge
                                 if con.depth.is_some() || con.redir.is_some() || con.directlink.is_some() || con.resolveredir.is_some() {
-                                    return Err(Box::new(SemanticError{ msg: String::from("invalid constraint") }));
+                                    return Err(PLBotParserError::Semantic(String::from("invalid constraint")));
                                 }
                                 let new_constraint = merge_constraints(&cs, &con)?;
                                 let new_inst = Instruction::Set { dest: *dest, titles: (*titles).clone(), cs: new_constraint };
@@ -171,7 +171,7 @@ fn ir_helper(ast: &Box<Expr>, mut reg_id: RegID) -> PLBotParseResult {
                             },
                         }
                     } else {
-                        return Err(Box::new(SemanticError{ msg: String::from("internal instruction not found while generating") }));
+                        return Err(PLBotParserError::Semantic(String::from("internal instruction not found while generating")));
                     }
                 }
             }
