@@ -1,41 +1,56 @@
-use std::cmp::Ordering;
-use std::collections::{HashSet, HashMap};
+use std::collections::HashMap;
 use mediawiki::title::Title;
 use mediawiki::page::Page;
 use mediawiki::api::Api;
 use plbot_base::bot::APIAssertType;
 use md5::{Md5, Digest};
 
-pub fn generate_text(list: &HashSet<Title>, api: &Api, before_list_text: &str, list_item_text: &str, between_item_text: &str, after_list_text: &str) -> String {
+pub fn generate_text(list: &Vec<Title>, api: &Api, before_list_text: &str, list_item_text: &str, between_item_text: &str, after_list_text: &str) -> String {
+    let list_size = list.len();
     let mut output: String = String::new();
-    output.push_str(&before_list_text);
-    let mut titles_vec: Vec<Title> = Vec::from_iter(list.iter().cloned());
-    titles_vec.sort_by(|a, b| {
-        if a.namespace_id() < b.namespace_id() {
-            Ordering::Less
-        } else if a.namespace_id() > b.namespace_id() {
-            Ordering::Greater
-        } else {
-            a.pretty().cmp(&b.pretty())
-        }
-    });
-    let item_str: String = titles_vec.iter().map(|t| substitute_template(t, list_item_text, api)).collect::<Vec<String>>().join(&between_item_text);
+    output.push_str(&substitute_str_template(before_list_text, list_size));
+    let item_str: String = list.iter().enumerate().map(|(idx, t)| substitute_str_template_with_title(list_item_text, t, idx, list_size, api)).collect::<Vec<String>>().join(&substitute_str_template(between_item_text, list_size));
     output.push_str(&item_str);
-    output.push_str(&after_list_text);
+    output.push_str(&substitute_str_template(after_list_text, list_size));
     output
 }
 
-fn substitute_template(t: &Title, template: &str, api: &Api) -> String {
+fn substitute_str_template(template: &str, total_num: usize) -> String {
     let mut output: String = String::new();
     let mut escape: bool = false;
     for char in template.chars() {
         if escape {
-            // only accept $0 (full name), $1 (namespace), $2 (name), $$ ($)
+            // only accept $+ (total size), $$ ($)
+            match char {
+                '$' => { output.push('$'); },
+                '+' => { output.push_str(&total_num.to_string()) },
+                _ => { output.push('$'); output.push(char); },
+            }
+            escape = false;
+        } else {
+            if char == '$' {
+                escape = true;
+            } else {
+                output.push(char);
+            }
+        }
+    }
+    output
+}
+
+fn substitute_str_template_with_title(template: &str, t: &Title, current_num: usize, total_num: usize, api: &Api) -> String {
+    let mut output: String = String::new();
+    let mut escape: bool = false;
+    for char in template.chars() {
+        if escape {
+            // only accept $0 (full name), $1 (namespace), $2 (name), $@ (current index), $+ (total size), $$ ($)
             match char {
                 '$' => { output.push('$'); },
                 '0' => { output.push_str(&t.full_pretty(api).unwrap_or("".to_string())); },
                 '1' => { output.push_str(t.namespace_name(api).unwrap_or("")); },
                 '2' => { output.push_str(t.pretty()); },
+                '@' => { output.push_str(&current_num.to_string()) },
+                '+' => { output.push_str(&total_num.to_string()) },
                 _ => { output.push('$'); output.push(char); },
             }
             escape = false;
@@ -53,6 +68,7 @@ fn substitute_template(t: &Title, template: &str, api: &Api) -> String {
 #[derive(Debug)]
 pub enum EditPageError {
     BadTitle,
+    RedirectOrMissing,
     MediaWiki(mediawiki::media_wiki_error::MediaWikiError),
     EditError(String, String),
 }
@@ -63,9 +79,10 @@ unsafe impl Send for EditPageError {}
 impl std::fmt::Display for EditPageError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            EditPageError::BadTitle => f.write_str("bad title"),
-            EditPageError::MediaWiki(e) => e.fmt(f),
-            EditPageError::EditError(code, info) => f.write_fmt(format_args!("MediaWiki API returns error code: \"{}\", more info: \"{}\"", code, info)),
+            Self::BadTitle => f.write_str("bad title"),
+            Self::RedirectOrMissing => f.write_str("target page is missing or is a redirect"),
+            Self::MediaWiki(e) => e.fmt(f),
+            Self::EditError(code, info) => f.write_fmt(format_args!("MediaWiki API returns error code: \"{}\", more info: \"{}\"", code, info)),
         }
     }
 }
@@ -91,6 +108,27 @@ impl From<(String, String)> for EditPageError {
 /// 
 pub async fn write_page(page: &Page, api: &mut Api, text: impl Into<String>, summary: impl Into<String>, assert: Option<APIAssertType>, bot: bool) -> Result<(), EditPageError> {
     let title = page.title().full_pretty(api).ok_or_else(|| EditPageError::BadTitle)?;
+    // if the target page is a redirect or does not exist, stop
+    let mut params = api.params_into(&[
+        ("utf8", "1"),
+        ("action", "query"),
+        ("prop", "info"),
+        ("titles", &title),
+    ]);
+    if let Some(a) = assert {
+        params.insert("assert".to_string(), a.to_string());
+    };
+    let res = api.get_query_api_json_all(&params).await?;
+    if let Some(res) = res["query"]["pages"].as_object() {
+        for (_, v) in res.iter() {
+            if v.get("missing").is_some() || v.get("redirect").is_some() {
+                return Err(EditPageError::RedirectOrMissing);
+            }
+        }
+    } else {
+        return Err(EditPageError::EditError(res["error"]["code"].as_str().unwrap_or("<unknown>").to_string(), res["error"]["info"].as_str().unwrap_or("<unknown>").to_string()));
+    }
+    // else, continue
     let text_string = text.into();
     let mut hasher = Md5::new();
     hasher.update(&text_string);

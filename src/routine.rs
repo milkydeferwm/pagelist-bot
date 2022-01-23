@@ -121,79 +121,60 @@ pub async fn task_runner(id: String, task: TaskInfo, mut api: Api, assert: Optio
     // we are going to occupy the lock throughout the task
     let _ = lock.lock();
     println!("Lock acquired");
-    // if the target page is a redirect or does not exist, stop
-    println!("Running check");
-    let target_title = Title::new_from_full(&task.target, &api);
-    let target_title_str = target_title.full_pretty(&api);
-    if target_title_str.is_none() {
-        return;
-    }
-    let mut params = api.params_into(&[
-        ("utf8", "1"),
-        ("action", "query"),
-        ("prop", "info"),
-        ("titles", &target_title_str.unwrap()),
-    ]);
-    if let Some(a) = assert {
-        params.insert("assert".to_string(), a.to_string());
-    };
-    println!("Sending check request");
-    let res = api.get_query_api_json_all(&params).await;
-    println!("Check request acquired");
-    if res.is_err() {
-        println!("Request failed");
-        return; // request failure
-    } else {
-        let res = res.unwrap();
-        if let Some(res) = res["query"]["pages"].as_object() {
-            for (_, v) in res.iter() {
-                if v.get("missing").is_some() || v.get("redirect").is_some() {
-                    println!("Missing or redirect");
-                    return; // page missing or is a redirect, return
-                }
-            }
-        } else {
-            println!("API fails");
-            return; // api failure, or assert fault
-        }
-    }
+    
     // prepare to do the work, with timeout
     let timeout = task.timeout.unwrap_or(default_config.timeout);
     let mut content: String = String::new();
-    let count: Option<usize>;
+    let titles_sorted: Option<Vec<Title>>;
     println!("Running query");
     let query_result = time::timeout(time::Duration::from_secs(timeout), parse_and_query(&task.expr, &api, assert)).await;
     match query_result {
         Err(_) => {
             content.push_str(&format!("<noinclude>{{{{{header}|taskid={id}|status=timeout}}}}</noinclude>", header=resultheader, id=id));
-            count = None;
+            titles_sorted = None;
         },
-        Ok(r) => {
+        Ok(ref r) => {
             match r {
                 Err(e) => {
                     content.push_str(&format!("<noinclude>{{{{{header}|taskid={id}|status={reason}}}}}</noinclude>", header=resultheader, id=id, reason=e));
-                    count = None;
+                    titles_sorted = None;
                 }
                 Ok(s) => {
                     content.push_str(&format!("<noinclude>{{{{{header}|taskid={id}|status=success}}}}</noinclude>", header=resultheader, id=id));
-                    count = Some(s.len());
-                    let output_text = output::generate_text(&s, &api, &task.output.before, &task.output.item, &task.output.between, &task.output.after);
-                    content.push_str(&output_text);
+                    let mut titles_vec: Vec<Title> = Vec::from_iter(s.iter().cloned());
+                    titles_vec.sort_by(|a, b| {
+                        if a.namespace_id() < b.namespace_id() {
+                            std::cmp::Ordering::Less
+                        } else if a.namespace_id() > b.namespace_id() {
+                            std::cmp::Ordering::Greater
+                        } else {
+                            a.pretty().cmp(&b.pretty())
+                        }
+                    });
+                    titles_sorted = Some(titles_vec);
                 }
             }
         },
     }
-    // currently just print the result
-    let target_page = Page::new(target_title);
-    let summary: String = match count {
-        None => String::from("Update query: failure"),
-        Some(c) => format!("Update query: {} result(s)", c),
-    };
-    let write_result = output::write_page(&target_page, &mut api, content, summary, assert, true).await;
-    if write_result.is_err() {
-        println!("Cannot edit target page: {}", write_result.unwrap_err());
-    } else {
-        println!("Target page edit successful");
+    
+    for out in &task.output {
+        let target_title: Title = Title::new_from_full(&out.target, &api);
+        let target_page = Page::new(target_title);
+        let mut content_clone = content.clone();
+        if let Some(titles) = titles_sorted.as_ref() {
+            let output_text = output::generate_text(titles, &api, &out.before,&out.item, &out.between, &out.after);
+            content_clone.push_str(&output_text);
+        }
+        let summary: String = match titles_sorted {
+            None => String::from("Update query: failure"),
+            Some(ref c) => format!("Update query: {} result(s)", c.len()),
+        };
+        let write_result = output::write_page(&target_page, &mut api, content_clone, summary, assert, true).await;
+        if write_result.is_err() {
+            println!("Cannot edit target page: {}", write_result.unwrap_err());
+        } else {
+            println!("Target page edit successful");
+        }
     }
 }
 

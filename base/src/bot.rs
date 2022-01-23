@@ -51,15 +51,15 @@ pub struct TaskInfo {
     pub activate: bool,
     pub description: String,
     pub expr: String,
-    pub target: String,
     pub interval: u64,
     pub timeout: Option<u64>,
     pub querylimit: Option<u64>,
-    pub output: OutputFormat,
+    pub output: Vec<OutputFormat>,
 }
 
 #[derive(PartialEq, Eq, Clone, Debug, serde::Deserialize)]
 pub struct OutputFormat {
+    pub target: String,
     pub before: String,
     pub item: String,
     pub between: String,
