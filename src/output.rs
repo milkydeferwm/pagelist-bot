@@ -9,7 +9,7 @@ pub fn generate_text(list: &Vec<Title>, api: &Api, before_list_text: &str, list_
     let list_size = list.len();
     let mut output: String = String::new();
     output.push_str(&substitute_str_template(before_list_text, list_size));
-    let item_str: String = list.iter().enumerate().map(|(idx, t)| substitute_str_template_with_title(list_item_text, t, idx, list_size, api)).collect::<Vec<String>>().join(&substitute_str_template(between_item_text, list_size));
+    let item_str: String = list.iter().enumerate().map(|(idx, t)| substitute_str_template_with_title(list_item_text, t, idx + 1, list_size, api)).collect::<Vec<String>>().join(&substitute_str_template(between_item_text, list_size));
     output.push_str(&item_str);
     output.push_str(&substitute_str_template(after_list_text, list_size));
     output
