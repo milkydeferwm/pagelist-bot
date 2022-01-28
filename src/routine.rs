@@ -124,10 +124,11 @@ pub async fn task_runner(id: String, task: TaskInfo, mut api: Api, assert: Optio
     
     // prepare to do the work, with timeout
     let timeout = task.timeout.unwrap_or(default_config.timeout);
+    let limit = task.querylimit.unwrap_or(default_config.querylimit);
     let mut content: String = String::new();
     let titles_sorted: Option<Vec<Title>>;
     println!("Running query");
-    let query_result = time::timeout(time::Duration::from_secs(timeout), parse_and_query(&task.expr, &api, assert)).await;
+    let query_result = time::timeout(time::Duration::from_secs(timeout), parse_and_query(&task.expr, &api, assert, limit)).await;
     match query_result {
         Err(_) => {
             content.push_str(&format!("<noinclude>{{{{{header}|taskid={id}|status=timeout}}}}</noinclude>", header=resultheader, id=id));
@@ -178,7 +179,7 @@ pub async fn task_runner(id: String, task: TaskInfo, mut api: Api, assert: Optio
     }
 }
 
-pub async fn parse_and_query(expr: &str, api: &Api, assert: Option<APIAssertType>) -> Result<HashSet<Title>, String> {
+pub async fn parse_and_query(expr: &str, api: &Api, assert: Option<APIAssertType>, default_limit: i64) -> Result<HashSet<Title>, String> {
     let query_inst;
     println!("Running parse");
     let query_result = plbot_parser::parse(expr);
@@ -188,7 +189,7 @@ pub async fn parse_and_query(expr: &str, api: &Api, assert: Option<APIAssertType
         query_inst = query_result.unwrap();
     }
     println!("Running solve");
-    let solve_result = plbot_solver::solve_api(&query_inst, &api, assert).await;
+    let solve_result = plbot_solver::solve_api(&query_inst, &api, assert, default_limit).await;
     if solve_result.is_err() {
         return Err(String::from("runtime"));
     } else {

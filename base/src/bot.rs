@@ -43,7 +43,7 @@ pub struct SiteConfig {
 #[derive(PartialEq, Eq, Clone, Copy, Debug, serde::Deserialize)]
 pub struct TaskConfig {
     pub timeout: u64,
-    pub querylimit: u64,
+    pub querylimit: i64,
 }
 
 #[derive(PartialEq, Eq, Clone, Debug, serde::Deserialize)]
@@ -53,7 +53,7 @@ pub struct TaskInfo {
     pub expr: String,
     pub interval: u64,
     pub timeout: Option<u64>,
-    pub querylimit: Option<u64>,
+    pub querylimit: Option<i64>,
     pub output: Vec<OutputFormat>,
 }
 
