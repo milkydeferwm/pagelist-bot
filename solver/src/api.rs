@@ -8,6 +8,14 @@ use std::collections::{HashSet, VecDeque};
 use mediawiki::{api::Api, title::Title};
 use plbot_base::{bot::APIAssertType, ir::{DepthNum, RedirectFilterStrategy}};
 
+fn limit_to_max(limit: i64) -> Option<usize> {
+    if limit < 0 {
+        None
+    } else {
+        Some(limit as usize)
+    }
+}
+
 fn pages_object_to_titles_set(data: &serde_json::Value, redirected: bool, redirect_filter: RedirectFilterStrategy, api: &Api) -> HashSet<Title> {
     if let Some(obj) = data.as_object() {
         let mut redirects: HashSet<Title> = HashSet::new();
@@ -54,7 +62,9 @@ fn pages_object_to_titles_set(data: &serde_json::Value, redirected: bool, redire
 /// `redirect_strat`: The redirect strategy to use when querying.
 /// 
 /// `follow_redir`: Whether should follow redirects. Usually you don't want to do this, because the redirects returned from this function all link to the page you are querying.
-pub(crate) async fn get_backlinks_one(title: &Title, api: &Api, assert: Option<APIAssertType>, ns: Option<&HashSet<NamespaceID>>, level_2: bool, redirect_strat: RedirectFilterStrategy, follow_redir: bool) -> Result<HashSet<Title>, SolveError> {
+/// 
+/// `limit`: Query limit.
+pub(crate) async fn get_backlinks_one(title: &Title, api: &Api, assert: Option<APIAssertType>, ns: Option<&HashSet<NamespaceID>>, level_2: bool, redirect_strat: RedirectFilterStrategy, follow_redir: bool, limit: i64) -> Result<HashSet<Title>, SolveError> {
     let elem_name = title.full_pretty(&api);
     if elem_name.is_none() {
         Ok(HashSet::new())
@@ -85,7 +95,7 @@ pub(crate) async fn get_backlinks_one(title: &Title, api: &Api, assert: Option<A
                 params.insert("gblnamespace".to_string(), util::concat_params(ns_list));
             }
         }
-        let res = api.get_query_api_json_all(&params).await?;
+        let res = api.get_query_api_json_limit(&params, limit_to_max(limit)).await?;
         util::detect_api_failure(&res)?;
         let mut title_set = pages_object_to_titles_set(&res["query"], follow_redir, redirect_strat, api);
         // Need to filter by namespace...
@@ -112,7 +122,9 @@ pub(crate) async fn get_backlinks_one(title: &Title, api: &Api, assert: Option<A
 /// `depth`: Maximum depth we should dive into. The category `title` sits at level 0, its sub categories sit at level 1, and so on. If `depth` is negative, then **every subcategory** in the hierarchy will be visited, which could be costly.
 /// 
 /// `follow_redir`: Whether should follow redirects.
-pub(crate) async fn get_category_members_one(title: &Title, api: &Api, assert: Option<APIAssertType>, ns: Option<&HashSet<NamespaceID>>, depth: DepthNum, follow_redir: bool) -> Result<HashSet<Title>, SolveError> {
+/// 
+/// `limit`: Query limit.
+pub(crate) async fn get_category_members_one(title: &Title, api: &Api, assert: Option<APIAssertType>, ns: Option<&HashSet<NamespaceID>>, depth: DepthNum, follow_redir: bool, limit: i64) -> Result<HashSet<Title>, SolveError> {
     // Due to miser mode, we need to do some preparations to cs.
     let mut ns_clone = ns.cloned();
     let mut result_has_ns_category: bool = true;
@@ -166,7 +178,7 @@ pub(crate) async fn get_category_members_one(title: &Title, api: &Api, assert: O
         params.insert("gcmnamespace".to_string(), util::concat_params(&cmnamespace));
         params.insert("gcmtype".to_string(), cmtype.join("|"));
         // fetch results
-        let res = api.get_query_api_json_all(&params).await?;
+        let res = api.get_query_api_json_limit(&params, limit_to_max(limit)).await?;
         util::detect_api_failure(&res)?;
         let mut title_set_2 = pages_object_to_titles_set(&res["query"], follow_redir, RedirectFilterStrategy::NoRedirect, api);
         if depth < 0 || this_depth < depth {
@@ -203,7 +215,9 @@ pub(crate) async fn get_category_members_one(title: &Title, api: &Api, assert: O
 /// `ns`: Namespace filter. If set to `None`, then the result is not filtered by namespace.
 /// 
 /// `redirect_strat`: The redirect strategy to use when querying.
-pub(crate) async fn get_prefix_index_one(title: &Title, api: &Api, assert: Option<APIAssertType>, ns: Option<&HashSet<NamespaceID>>, redirect_strat: RedirectFilterStrategy) -> Result<HashSet<Title>, SolveError> {
+/// 
+/// `limit`: Query limit.
+pub(crate) async fn get_prefix_index_one(title: &Title, api: &Api, assert: Option<APIAssertType>, ns: Option<&HashSet<NamespaceID>>, redirect_strat: RedirectFilterStrategy, limit: i64) -> Result<HashSet<Title>, SolveError> {
     let title_ns_id = title.namespace_id();
     if let Some(ns_list) = ns {
         if !ns_list.contains(&title_ns_id) {
@@ -220,7 +234,7 @@ pub(crate) async fn get_prefix_index_one(title: &Title, api: &Api, assert: Optio
         ("gapfilterredir", redirect_strat.to_string().as_str()),
     ]);
     util::insert_assert_param(&mut params, assert);
-    let res = api.get_query_api_json_all(&params).await?;
+    let res = api.get_query_api_json_limit(&params, limit_to_max(limit)).await?;
     util::detect_api_failure(&res)?;
     let title_set = pages_object_to_titles_set(&res["query"], false, redirect_strat, api);
     Ok(title_set)
@@ -241,7 +255,9 @@ pub(crate) async fn get_prefix_index_one(title: &Title, api: &Api, assert: Optio
 /// `redirect_strat`: The redirect strategy to use when querying. This is useful if a redirect page itself transcludes this page.
 /// 
 /// `follow_redir`: Whether should follow redirects.
-pub(crate) async fn get_embed_one(title: &Title, api: &Api, assert: Option<APIAssertType>, ns: Option<&HashSet<NamespaceID>>, redirect_strat: RedirectFilterStrategy, follow_redir: bool) -> Result<HashSet<Title>, SolveError> {
+/// 
+/// `limit`: Query limit.
+pub(crate) async fn get_embed_one(title: &Title, api: &Api, assert: Option<APIAssertType>, ns: Option<&HashSet<NamespaceID>>, redirect_strat: RedirectFilterStrategy, follow_redir: bool, limit: i64) -> Result<HashSet<Title>, SolveError> {
     let elem_name = title.full_pretty(&api);
     if elem_name.is_none() {
         Ok(HashSet::new())
@@ -261,7 +277,7 @@ pub(crate) async fn get_embed_one(title: &Title, api: &Api, assert: Option<APIAs
             params.insert("redirects".to_string(), "1".to_string());
         }
         util::insert_assert_param(&mut params, assert);
-        let res = api.get_query_api_json_all(&params).await?;
+        let res = api.get_query_api_json_limit(&params, limit_to_max(limit)).await?;
         util::detect_api_failure(&res)?;
         let title_set = pages_object_to_titles_set(&res["query"], follow_redir, redirect_strat, api);
         Ok(title_set)
@@ -279,7 +295,9 @@ pub(crate) async fn get_embed_one(title: &Title, api: &Api, assert: Option<APIAs
 /// `ns`: Namespace filter. If set to `None`, then the result is not filtered by namespace.
 /// 
 /// `follow_redir`: Whether should follow redirects.
-pub(crate) async fn get_links_one(title: &Title, api: &Api, assert: Option<APIAssertType>, ns: Option<&HashSet<NamespaceID>>, follow_redir: bool) -> Result<HashSet<Title>, SolveError> {
+/// 
+/// `limit`: Query limit
+pub(crate) async fn get_links_one(title: &Title, api: &Api, assert: Option<APIAssertType>, ns: Option<&HashSet<NamespaceID>>, follow_redir: bool, limit: i64) -> Result<HashSet<Title>, SolveError> {
     let elem_name = title.full_pretty(&api);
     if elem_name.is_none() {
         Ok(HashSet::new())
@@ -298,7 +316,7 @@ pub(crate) async fn get_links_one(title: &Title, api: &Api, assert: Option<APIAs
             params.insert("redirects".to_string(), "1".to_string());
         }
         util::insert_assert_param(&mut params, assert);
-        let res = api.get_query_api_json_all(&params).await?;
+        let res = api.get_query_api_json_limit(&params, limit_to_max(limit)).await?;
         util::detect_api_failure(&res)?;
         let title_vec = pages_object_to_titles_set(&res["query"], follow_redir, RedirectFilterStrategy::NoRedirect, api);
         let title_set = HashSet::from_iter(title_vec.into_iter());
