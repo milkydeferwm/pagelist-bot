@@ -58,6 +58,20 @@ pub struct SetConstraint {
     pub redir: Option<RedirectFilterStrategy>,
     pub directlink: Option<bool>,
     pub resolveredir: Option<bool>,
+    pub limit: Option<i64>,
+}
+
+impl SetConstraint {
+    pub fn new() -> Self {
+        Self {
+            ns: None,
+            depth: None,
+            redir: None,
+            directlink: None,
+            resolveredir: None,
+            limit: None,
+        }
+    }
 }
 
 #[derive(Debug, Clone)]

@@ -33,18 +33,18 @@ fn ir_helper(ast: &Box<Expr>, mut reg_id: RegID) -> PLBotParseResult {
         let instruct: Instruction;
         match &**node {
             Expr::Page(l) => {
-                instruct = Instruction::Set{ dest:reg_id, titles: l.to_owned(), cs: SetConstraint { ns: None, depth: None, redir: None, directlink: None, resolveredir: None } };
+                instruct = Instruction::Set{ dest:reg_id, titles: l.to_owned(), cs: SetConstraint::new() };
                 inst.push(instruct);
                 reg_id += 1;
             },
             Expr::Unary(op, _) => {
                 instruct = match *op {
-                    UnaryOpcode::Link => Instruction::Link{ dest: reg_id, op: reg_id - 1, cs: SetConstraint { ns: None, depth: None, redir: None, directlink: None, resolveredir: None } },
-                    UnaryOpcode::LinkTo => Instruction::LinkTo{ dest: reg_id, op: reg_id - 1, cs: SetConstraint { ns: None, depth: None, redir: None, directlink: None, resolveredir: None } },
-                    UnaryOpcode::EmbeddedIn => Instruction::EmbeddedIn{ dest: reg_id, op: reg_id - 1, cs: SetConstraint { ns: None, depth: None, redir: None, directlink: None, resolveredir: None } },
-                    UnaryOpcode::InCategory => Instruction::InCat{ dest: reg_id, op: reg_id - 1, cs: SetConstraint { ns: None, depth: None, redir: None, directlink: None, resolveredir: None } },
+                    UnaryOpcode::Link => Instruction::Link{ dest: reg_id, op: reg_id - 1, cs: SetConstraint::new() },
+                    UnaryOpcode::LinkTo => Instruction::LinkTo{ dest: reg_id, op: reg_id - 1, cs: SetConstraint::new() },
+                    UnaryOpcode::EmbeddedIn => Instruction::EmbeddedIn{ dest: reg_id, op: reg_id - 1, cs: SetConstraint::new() },
+                    UnaryOpcode::InCategory => Instruction::InCat{ dest: reg_id, op: reg_id - 1, cs: SetConstraint::new() },
                     UnaryOpcode::Toggle => Instruction::Toggle{ dest: reg_id, op: reg_id - 1 },
-                    UnaryOpcode::Prefix => Instruction::Prefix{ dest: reg_id, op: reg_id - 1, cs: SetConstraint { ns: None, depth: None, redir: None, directlink: None, resolveredir: None } },
+                    UnaryOpcode::Prefix => Instruction::Prefix{ dest: reg_id, op: reg_id - 1, cs: SetConstraint::new() },
                 };
                 inst.push(instruct);
                 reg_id += 1;
@@ -140,7 +140,7 @@ fn ir_helper(ast: &Box<Expr>, mut reg_id: RegID) -> PLBotParseResult {
                                     for i in ns_vec.iter_mut() {
                                         *i ^= 0b1;
                                     }
-                                    let new_con = SetConstraint { ns: Some(HashSet::from_iter(ns_vec.into_iter())), depth: con.depth, redir: con.redir, directlink: con.directlink, resolveredir: con.resolveredir };
+                                    let new_con = SetConstraint { ns: Some(HashSet::from_iter(ns_vec.into_iter())), depth: con.depth, redir: con.redir, directlink: con.directlink, resolveredir: con.resolveredir, limit: con.limit };
                                     stack.push((*op, new_con));
                                 } else {
                                     stack.push((*op, con.clone()));

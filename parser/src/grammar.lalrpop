@@ -42,6 +42,7 @@ Constraint: Constraint = {
     "." "onlyredir" "(" ")" => Constraint::Redir(RedirectFilterStrategy::OnlyRedirect),
     "." "resolve" "(" ")" => Constraint::ResolveRedir(true),
     "." "direct" "(" ")" => Constraint::DirectLink(true),
+    "." "limit" "(" <Num> ")" => Constraint::Limit(<>),
 };
 
 UnaryOp: UnaryOpcode = {

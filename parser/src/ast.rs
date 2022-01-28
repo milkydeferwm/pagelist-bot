@@ -40,4 +40,5 @@ pub(crate) enum Constraint {
     Redir(RedirectFilterStrategy),
     DirectLink(bool),
     ResolveRedir(bool),
+    Limit(i64),
 }

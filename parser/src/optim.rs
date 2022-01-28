@@ -10,82 +10,95 @@ use plbot_base::NamespaceID;
 use crate::{ast::*, error::PLBotParserError};
 
 /// Convert a `Vec` of `Constraint`s into a `SetConstraint`
-/// Merge all `Ns` constraints (using intersection), and reject any other duplicate-and-confilcting constraints
+/// Merge all `Ns` constraints (using intersection), set all `Limit` constraints to the minimum, and reject any other duplicate-and-confilcting constraints
 pub(crate) fn construct_constraints_from_vec(orig: &Vec<Constraint>) -> Result<SetConstraint, PLBotParserError> {
-    let mut con_dep: Option<DepthNum> = None;
-    let mut con_ns_set: Option<HashSet<NamespaceID>> = None;
-    let mut con_redir: Option<RedirectFilterStrategy> = None;
-    let mut con_directlink: Option<bool> = None;
-    let mut con_resolveredir: Option<bool> = None;
+    let mut depth: Option<DepthNum> = None;
+    let mut ns: Option<HashSet<NamespaceID>> = None;
+    let mut redir: Option<RedirectFilterStrategy> = None;
+    let mut directlink: Option<bool> = None;
+    let mut resolveredir: Option<bool> = None;
+    let mut limit: Option<i64> = None;
 
     for c in orig {
         match &*c {
             Constraint::Ns(n) => {
-                if con_ns_set.is_none() {
-                    con_ns_set = Some(n.into_iter().copied().collect());
+                if ns.is_none() {
+                    ns = Some(n.into_iter().copied().collect());
                 } else {
-                    let old_set = con_ns_set.unwrap();
+                    let old_set = ns.unwrap();
                     let new_set = n.into_iter().copied().collect();
                     let intersect_set = old_set.intersection(&new_set).copied().collect();
-                    con_ns_set = Some(intersect_set);
+                    ns = Some(intersect_set);
                 }
             },
             Constraint::Depth(d) => {
-                if con_dep.is_none() {
-                    con_dep = Some(*d);
+                if depth.is_none() {
+                    depth = Some(*d);
                 } else {
-                    let n = con_dep.unwrap();
+                    let n = depth.unwrap();
                     if n != *d && (n >= 0 || *d >= 0) { // Disallow different depth constraints, except they are both negative
                         return Err(PLBotParserError::Semantic("conflict depth".to_string()));
                     }
                 }
             }
             Constraint::Redir(s) => {
-                if con_redir.is_none() {
-                    con_redir = Some(*s);
+                if redir.is_none() {
+                    redir = Some(*s);
                 } else {
-                    let ss = con_redir.unwrap();
+                    let ss = redir.unwrap();
                     if ss != *s {
                         return Err(PLBotParserError::Semantic("conflict redirect strategy".to_string()));
                     }
                 }
             },
             Constraint::DirectLink(s) => {
-                if con_directlink.is_none() {
-                    con_directlink = Some(*s);
+                if directlink.is_none() {
+                    directlink = Some(*s);
                 } else {
-                    let ss = con_directlink.unwrap();
+                    let ss = directlink.unwrap();
                     if ss != *s {
                         return Err(PLBotParserError::Semantic("conflict direct link constraint".to_string()));
                     }
                 }
             },
             Constraint::ResolveRedir(s) => {
-                if con_resolveredir.is_none() {
-                    con_resolveredir = Some(*s);
+                if resolveredir.is_none() {
+                    resolveredir = Some(*s);
                 } else {
-                    let ss = con_resolveredir.unwrap();
+                    let ss = resolveredir.unwrap();
                     if ss != *s {
                         return Err(PLBotParserError::Semantic("conflict resolveredir constraint".to_string()));
                     }
                 }
             },
+            Constraint::Limit(l) => {
+                if limit.is_none() {
+                    limit = Some(*l);
+                } else if *l >= 0 {
+                    let ll = limit.unwrap();
+                    if ll < 0 {
+                        limit = Some(*l);
+                    } else {
+                        limit = Some(i64::min(*l, ll));
+                    }
+                }
+            }
         }
     }
-    Ok( SetConstraint { ns: con_ns_set, depth: con_dep, redir: con_redir, directlink: con_directlink, resolveredir: con_resolveredir } )
+    Ok( SetConstraint { ns, depth, redir, directlink, resolveredir, limit } )
 }
 
 /// Merge two `SetConstraint`s into one
-/// `Ns` will be merged by intersection, for other constraints, return error if they conflict.
+/// `Ns` will be merged by intersection, `Limit` will get the minimum number, for other constraints, return error if they conflict.
 pub(crate) fn merge_constraints(orig: &SetConstraint, other: &SetConstraint) -> Result<SetConstraint, PLBotParserError> {
-    let merged_ns = if orig.ns.is_none() {
+    let ns = if orig.ns.is_none() {
         other.ns.clone()
     } else if other.ns.is_none() {
         orig.ns.clone()
     } else {
         Some(orig.ns.as_ref().unwrap().intersection(&other.ns.as_ref().unwrap()).copied().collect())
     };
-    let merged_depth = if orig.depth.is_none() {
+    let depth = if orig.depth.is_none() {
         other.depth
     } else if other.depth.is_none() {
         orig.depth
@@ -94,7 +107,7 @@ pub(crate) fn merge_constraints(orig: &SetConstraint, other: &SetConstraint) -> 
     } else {
         return Err(PLBotParserError::Semantic(String::from("conflict depth")));
     };
-    let merged_redir = if orig.redir.is_none() {
+    let redir = if orig.redir.is_none() {
         other.redir
     } else if other.redir.is_none() {
         orig.redir
@@ -103,7 +116,7 @@ pub(crate) fn merge_constraints(orig: &SetConstraint, other: &SetConstraint) -> 
     } else {
         return Err(PLBotParserError::Semantic(String::from("conflict redirect strategy")));
     };
-    let merged_directlink = if orig.directlink.is_none() {
+    let directlink = if orig.directlink.is_none() {
         other.directlink
     } else if other.directlink.is_none() {
         orig.directlink
@@ -112,7 +125,7 @@ pub(crate) fn merge_constraints(orig: &SetConstraint, other: &SetConstraint) -> 
     } else {
         return Err(PLBotParserError::Semantic(String::from("conflict directlink constraint")));
     };
-    let merged_resolveredir = if orig.resolveredir.is_none() {
+    let resolveredir = if orig.resolveredir.is_none() {
         other.resolveredir
     } else if other.resolveredir.is_none() {
         orig.resolveredir
@@ -121,8 +134,15 @@ pub(crate) fn merge_constraints(orig: &SetConstraint, other: &SetConstraint) -> 
     } else {
         return Err(PLBotParserError::Semantic(String::from("conflict resolveredir constraint")));
     };
+    let limit = if orig.limit.is_none() || orig.limit.unwrap() < 0 {
+        other.limit
+    } else if other.limit.is_none() || other.limit.unwrap() < 0 {
+        orig.limit
+    } else {
+        Some(i64::min(orig.limit.unwrap(), other.limit.unwrap()))
+    };
 
-    Ok(SetConstraint { ns: merged_ns, depth: merged_depth, redir: merged_redir, directlink: merged_directlink, resolveredir: merged_resolveredir })
+    Ok(SetConstraint { ns, depth, redir, directlink, resolveredir, limit })
 }
 
 /// Removes consecutive `Toggle` instructions
@@ -185,7 +205,7 @@ pub(crate) fn remove_empty_ns(ir: &mut Vec<Instruction>) {
                         },
                         Instruction::Set { dest: _, titles, cs } => {
                             titles.clear();
-                            *cs = SetConstraint { ns: None, depth: None, redir: None, directlink: None, resolveredir: None };
+                            *cs = SetConstraint::new();
                         },
                         Instruction::Nop { dest: _, op } => {
                             stack.push(*op);
