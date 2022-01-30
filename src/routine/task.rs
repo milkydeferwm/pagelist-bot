@@ -12,6 +12,7 @@ async fn fetch_text_by_id(id: &str, api: Arc<RwLock<Api>>, assert: Option<APIAss
     let result;
     {
         let api = api.read().await;
+        println!("[{}] API lock got", id);
         let mut params = api.params_into(&[
             ("utf8", "1"),
             ("action", "query"),
@@ -28,7 +29,8 @@ async fn fetch_text_by_id(id: &str, api: Arc<RwLock<Api>>, assert: Option<APIAss
             .await
             .map_err(PageError::MediaWiki)?;
     }
-    let page = &result["query"]["pages"][0];
+    println!("[{}] Page fetched", id);
+    let page = &result["query"]["pages"][id];
     if let Some(slots) = page["revisions"][0]["slots"].as_object() {
         if let Some(the_slot) = {
             slots["main"].as_object().or_else(|| {
@@ -39,7 +41,7 @@ async fn fetch_text_by_id(id: &str, api: Arc<RwLock<Api>>, assert: Option<APIAss
                 }
             })
         } {
-            match the_slot["content"].as_str() {
+            match the_slot["*"].as_str() {
                 Some(string) => Ok(string.to_string()),
                 None => Err(PageError::BadResponse(result)),
             }
@@ -60,23 +62,29 @@ pub async fn task_runner(id: String, api: Arc<RwLock<Api>>, assert: Option<APIAs
         {
             let mut status = status.write().await;
             *status = TaskStatus::Running;
+            println!("[{}] Status updated to running", id);
         }
         // retrive task page based on page id (aka task id)
         let task: TaskInfo;
         {
             let task_content = fetch_text_by_id(&id, api.clone(), assert).await;
+            println!("[{}] Task content got", id);
             if task_content.is_err() {
+                println!("[{}] Task content is error, skip", id);
                 break;
             }
             let task_content = task_content.unwrap();
             let task_json = serde_json::from_str(&task_content);
             if task_json.is_err() {
+                println!("[{}] Task json is error, skip", id);
                 break;
             }
             task = task_json.unwrap();
         }
+        println!("[{}] Task info fetched", id);
         // check activate
         if !task.activate {
+            println!("[{}] Task skipped because not activate", id);
             break;
         }
         // load configs
@@ -87,6 +95,7 @@ pub async fn task_runner(id: String, api: Arc<RwLock<Api>>, assert: Option<APIAs
             timeout = task.timeout.unwrap_or(default_config.timeout);
             limit = task.querylimit.unwrap_or(default_config.querylimit);
         }
+        println!("[{}] Config determined", id);
         let mut content: String = String::new();
         let titles_sorted: Option<Vec<Title>>;
         let query_result;
@@ -128,6 +137,7 @@ pub async fn task_runner(id: String, api: Arc<RwLock<Api>>, assert: Option<APIAs
         }
         // write page one-by-one
         for out in &task.output {
+            println!("[{}] Writing a page", id);
             // set target page
             let target_page: Page;
             {
@@ -139,6 +149,7 @@ pub async fn task_runner(id: String, api: Arc<RwLock<Api>>, assert: Option<APIAs
             {
                 let deny_ns = deny_ns.read().await;
                 if deny_ns.contains(&target_page.title().namespace_id()) {
+                    println!("[{}] Write page skipped because namespace forbidden", id);
                     continue;
                 }
             }
@@ -172,7 +183,9 @@ pub async fn task_runner(id: String, api: Arc<RwLock<Api>>, assert: Option<APIAs
         {
             let mut status = status.write().await;
             *status = TaskStatus::Standby;
+            println!("[{}] Status updated to standby", id);
         }
+        println!("[{}] Hibernate now", id);
         time::sleep_until(now + time::Duration::from_secs(task.interval)).await;
     }
     // update task status ready to be purged
