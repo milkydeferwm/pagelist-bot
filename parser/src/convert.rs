@@ -7,20 +7,20 @@ use std::collections::HashSet;
 use crate::{ast::Expr, ast::UnaryOpcode, ast::BinaryOpcode, PLBotParseResult, optim::merge_constraints, optim::construct_constraints_from_vec, error::PLBotParserError};
 use plbot_base::ir::{Instruction, SetConstraint, RegID, RedirectFilterStrategy};
 
-pub(crate) fn to_ir(ast: &Box<Expr>) -> PLBotParseResult {
+pub(crate) fn to_ir(ast: &Expr) -> PLBotParseResult {
     ir_helper(ast, 0)
 }
 
-fn ir_helper(ast: &Box<Expr>, mut reg_id: RegID) -> PLBotParseResult {
+fn ir_helper(ast: &Expr, mut reg_id: RegID) -> PLBotParseResult {
     // do a postorder dfs to the tree
     // find any semantic error
-    let mut stack: Vec<&Box<Expr>> = Vec::new();
+    let mut stack: Vec<&Expr> = Vec::new();
     let mut root = Some(ast);
     let mut inst: Vec<Instruction> = Vec::new();
 
     while let Some(node) = root {
         stack.push(node);
-        match &**node {
+        match &node {
             Expr::Binary(..) => root = None,
             Expr::Unary(_, c) => root = Some(c),
             Expr::Constrained(c, _) => root = Some(c),
@@ -31,7 +31,7 @@ fn ir_helper(ast: &Box<Expr>, mut reg_id: RegID) -> PLBotParseResult {
     while !stack.is_empty() {
         let node = stack.pop().unwrap();
         let instruct: Instruction;
-        match &**node {
+        match &node {
             Expr::Page(l) => {
                 instruct = Instruction::Set{ dest:reg_id, titles: l.to_owned(), cs: SetConstraint::new() };
                 inst.push(instruct);
@@ -97,7 +97,7 @@ fn ir_helper(ast: &Box<Expr>, mut reg_id: RegID) -> PLBotParseResult {
                                 if con.redir.is_some() && con.redir.unwrap() != RedirectFilterStrategy::All {
                                     return Err(PLBotParserError::Semantic(String::from("invalid redirect strategy")));
                                 }
-                                let new_constraint = merge_constraints(&cs, &con)?;
+                                let new_constraint = merge_constraints(cs, &con)?;
                                 let new_inst = Instruction::Link { dest: *dest, op: *op, cs: new_constraint };
                                 inst[idx] = new_inst;
                             },
@@ -106,7 +106,7 @@ fn ir_helper(ast: &Box<Expr>, mut reg_id: RegID) -> PLBotParseResult {
                                 if con.depth.is_some() {
                                     return Err(PLBotParserError::Semantic(String::from("invalid depth constraint")));
                                 }
-                                let new_constraint = merge_constraints(&cs, &con)?;
+                                let new_constraint = merge_constraints(cs, &con)?;
                                 let new_inst = Instruction::LinkTo { dest: *dest, op: *op, cs: new_constraint };
                                 inst[idx] = new_inst;
                             },
@@ -115,7 +115,7 @@ fn ir_helper(ast: &Box<Expr>, mut reg_id: RegID) -> PLBotParseResult {
                                 if con.depth.is_some() || con.directlink.is_some() {
                                     return Err(PLBotParserError::Semantic(String::from("invalid constraint")));
                                 }
-                                let new_constraint = merge_constraints(&cs, &con)?;
+                                let new_constraint = merge_constraints(cs, &con)?;
                                 let new_inst = Instruction::EmbeddedIn { dest: *dest, op: *op, cs: new_constraint };
                                 inst[idx] = new_inst;
                             }
@@ -127,7 +127,7 @@ fn ir_helper(ast: &Box<Expr>, mut reg_id: RegID) -> PLBotParseResult {
                                 if con.directlink.is_some() {
                                     return Err(PLBotParserError::Semantic(String::from("invalid directlink constraint")));
                                 }
-                                let new_constraint = merge_constraints(&cs, &con)?;
+                                let new_constraint = merge_constraints(cs, &con)?;
                                 let new_inst = Instruction::InCat { dest: *dest, op: *op, cs: new_constraint };
                                 inst[idx] = new_inst;
                             }
@@ -135,8 +135,8 @@ fn ir_helper(ast: &Box<Expr>, mut reg_id: RegID) -> PLBotParseResult {
                                 // switch every ns constraint, then pass through this instruction
                                 let ns = con.ns.clone();
                                 
-                                if ns.is_some() {
-                                    let mut ns_vec = Vec::from_iter(ns.unwrap());
+                                if let Some(ns_set) = ns {
+                                    let mut ns_vec = Vec::from_iter(ns_set);
                                     for i in ns_vec.iter_mut() {
                                         *i ^= 0b1;
                                     }
@@ -152,7 +152,7 @@ fn ir_helper(ast: &Box<Expr>, mut reg_id: RegID) -> PLBotParseResult {
                                 if con.depth.is_some() || con.directlink.is_some() || con.resolveredir.is_some() {
                                     return Err(PLBotParserError::Semantic(String::from("invalid constraint")));
                                 }
-                                let new_constraint = merge_constraints(&cs, &con)?;
+                                let new_constraint = merge_constraints(cs, &con)?;
                                 let new_inst = Instruction::Prefix { dest: *dest, op: *op, cs: new_constraint };
                                 inst[idx] = new_inst;
                             },
@@ -165,7 +165,7 @@ fn ir_helper(ast: &Box<Expr>, mut reg_id: RegID) -> PLBotParseResult {
                                 if con.depth.is_some() || con.redir.is_some() || con.directlink.is_some() || con.resolveredir.is_some() {
                                     return Err(PLBotParserError::Semantic(String::from("invalid constraint")));
                                 }
-                                let new_constraint = merge_constraints(&cs, &con)?;
+                                let new_constraint = merge_constraints(cs, &con)?;
                                 let new_inst = Instruction::Set { dest: *dest, titles: (*titles).clone(), cs: new_constraint };
                                 inst[idx] = new_inst;
                             },
