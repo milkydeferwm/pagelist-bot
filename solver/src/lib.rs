@@ -9,7 +9,7 @@ mod error;
 #[cfg(feature="mwapi")]
 mod api;
 
-use crate::error::SolveError;
+pub use crate::error::SolveError;
 use plbot_base::{ir::RegID, ir::RedirectFilterStrategy, bot::APIAssertType};
 use util::{get_set_1, get_set_2};
 

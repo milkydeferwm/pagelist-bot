@@ -6,10 +6,11 @@ extern crate plbot_base;
 extern crate plbot_parser;
 extern crate plbot_solver;
 
+use std::{fs, sync::Arc};
 use serde_json::Value;
-use std::fs;
+use mediawiki::api::Api;
+use tokio::{spawn, sync::RwLock};
 
-mod output;
 mod routine;
 mod arg;
 
@@ -18,16 +19,25 @@ mod arg;
 #[tokio::main]
 async fn main() {
     let args = arg::build_argparse().get_matches();
+
     let sites = fs::read_to_string(args.value_of("site").unwrap()).expect("cannot open site information file");
     let sites: Value = serde_json::from_str(&sites).expect("cannot parse site information file");
     let profile = args.value_of("profile").unwrap();
-    let site_prof: plbot_base::bot::SiteProfile = serde_json::from_value(sites[profile].clone()).expect("cannot find specified site profile");
+    let profile: routine::SiteProfile = serde_json::from_value(sites[profile].clone()).expect("cannot find specified site profile");
     let login = fs::read_to_string(args.value_of("login").unwrap()).expect("cannot open login file");
     let login: Value = serde_json::from_str(&login).expect("cannot parse login file.");
-    let login: plbot_base::bot::LoginCredential = serde_json::from_value(login[&site_prof.login].clone()).expect("cannot find specified site profile");
+    let login: routine::LoginCredential = serde_json::from_value(login[&profile.login].clone()).expect("cannot find specified site profile");
 
-    let _daemon_handler = tokio::spawn(
-        routine::task_daemon(login, site_prof)
+    // initialize mediawiki api instance
+    let mut api: Api = Api::new(&profile.api).await.expect("cannot access target MediaWiki instance");
+    api.set_maxlag(Some(5));
+    api.set_max_retry_attempts(3);
+    api.set_user_agent(format!("Page List Bot / via User:{}", login.username));
+    api.login(login.username, login.password).await.expect("cannot log in");
+    let api = Arc::new(RwLock::new(api));
+
+    let _daemon_handler = spawn(
+        routine::task_daemon(profile.config.clone(), api.clone(), profile.assert)
     );
 
     match tokio::signal::ctrl_c().await {

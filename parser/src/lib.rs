@@ -12,7 +12,7 @@ mod optim;
 mod convert;
 mod error;
 
-use error::PLBotParserError;
+pub use error::PLBotParserError;
 
 type PLBotParseResult = Result<plbot_base::Query, PLBotParserError>;
 
