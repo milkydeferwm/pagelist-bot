@@ -3,16 +3,14 @@ use std::collections::HashSet;
 
 use mediawiki::{api::Api, title::Title, page::{Page, PageError}};
 use plbot_base::{bot::APIAssertType, NamespaceID};
-use tokio::{sync::RwLock, time};
+use tokio::{sync::RwLock, sync::Mutex, time};
 
 use super::types::{TaskStatus, TaskConfig, TaskInfo};
 use super::output;
 
-async fn fetch_text_by_id(id: &str, api: Arc<RwLock<Api>>, assert: Option<APIAssertType>) -> Result<String, PageError> {
+async fn fetch_text_by_id(id: &str, api: &Api, assert: Option<APIAssertType>) -> Result<String, PageError> {
     let result;
     {
-        let api = api.read().await;
-        println!("[{}] API lock got", id);
         let mut params = api.params_into(&[
             ("utf8", "1"),
             ("action", "query"),
@@ -29,7 +27,6 @@ async fn fetch_text_by_id(id: &str, api: Arc<RwLock<Api>>, assert: Option<APIAss
             .await
             .map_err(PageError::MediaWiki)?;
     }
-    println!("[{}] Page fetched", id);
     let page = &result["query"]["pages"][id];
     if let Some(slots) = page["revisions"][0]["slots"].as_object() {
         if let Some(the_slot) = {
@@ -53,7 +50,8 @@ async fn fetch_text_by_id(id: &str, api: Arc<RwLock<Api>>, assert: Option<APIAss
     }
 }
 
-pub async fn task_runner(id: String, api: Arc<RwLock<Api>>, assert: Option<APIAssertType>, status: Arc<RwLock<TaskStatus>>, default_config: Arc<RwLock<TaskConfig>>, deny_ns: Arc<RwLock<HashSet<NamespaceID>>>, header: Arc<RwLock<String>>) {
+#[allow(clippy::too_many_arguments)]
+pub async fn task_runner(id: String, mut api: Api, write_lock: Arc<Mutex<bool>>, assert: Option<APIAssertType>, status: Arc<RwLock<TaskStatus>>, default_config: Arc<RwLock<TaskConfig>>, deny_ns: Arc<RwLock<HashSet<NamespaceID>>>, header: Arc<RwLock<String>>) {
     loop {
         // logs the current time
         let now = time::Instant::now();
@@ -67,7 +65,7 @@ pub async fn task_runner(id: String, api: Arc<RwLock<Api>>, assert: Option<APIAs
         // retrive task page based on page id (aka task id)
         let task: TaskInfo;
         {
-            let task_content = fetch_text_by_id(&id, api.clone(), assert).await;
+            let task_content = fetch_text_by_id(&id, &api, assert).await;
             println!("[{}] Task content got", id);
             if task_content.is_err() {
                 println!("[{}] Task content is error, skip", id);
@@ -101,10 +99,7 @@ pub async fn task_runner(id: String, api: Arc<RwLock<Api>>, assert: Option<APIAs
         let query_result;
         // do the query
         println!("[{}] Running query", id);
-        {
-            let api = api.read().await;
-            query_result = time::timeout(time::Duration::from_secs(timeout), parse_and_query(&task.expr, &api, assert, limit)).await;
-        }
+        query_result = time::timeout(time::Duration::from_secs(timeout), parse_and_query(&task.expr, &api, assert, limit)).await;
         // set up output header and output title vector
         {
             let header = header.read().await;
@@ -140,11 +135,8 @@ pub async fn task_runner(id: String, api: Arc<RwLock<Api>>, assert: Option<APIAs
             println!("[{}] Writing a page", id);
             // set target page
             let target_page: Page;
-            {
-                let api = api.read().await;
-                let target_title: Title = Title::new_from_full(&out.target, &api);
-                target_page = Page::new(target_title);
-            }
+            let target_title: Title = Title::new_from_full(&out.target, &api);
+            target_page = Page::new(target_title);
             // check taboo namespace...
             {
                 let deny_ns = deny_ns.read().await;
@@ -155,12 +147,9 @@ pub async fn task_runner(id: String, api: Arc<RwLock<Api>>, assert: Option<APIAs
             }
             // set content to write
             let mut content_clone = content.clone();
-            {
-                let api = api.read().await;
-                if let Some(titles) = titles_sorted.as_ref() {
-                    let output_text = output::generate_text(titles, &api, &out.before,&out.item, &out.between, &out.after);
-                    content_clone.push_str(&output_text);
-                }
+            if let Some(titles) = titles_sorted.as_ref() {
+                let output_text = output::generate_text(titles, &api, &out.before,&out.item, &out.between, &out.after);
+                content_clone.push_str(&output_text);
             }
             // set edit summary
             let summary: String = match titles_sorted {
@@ -170,7 +159,7 @@ pub async fn task_runner(id: String, api: Arc<RwLock<Api>>, assert: Option<APIAs
             // write page
             let write_result;
             {
-                let mut api = api.write().await;
+                let _ = write_lock.lock();
                 write_result = output::write_page(&target_page, &mut api, content_clone, summary, assert, true).await;
             }
             if write_result.is_err() {

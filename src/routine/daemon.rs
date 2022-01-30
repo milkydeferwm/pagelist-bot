@@ -3,7 +3,7 @@ use std::collections::{HashMap, HashSet};
 use plbot_base::NamespaceID;
 use plbot_base::bot::APIAssertType;
 use serde_json::Map;
-use tokio::sync::RwLock;
+use tokio::sync::{Mutex, RwLock};
 use tokio::task::JoinHandle;
 use tokio::time;
 use mediawiki::{page::Page, title::Title, api::Api};
@@ -17,13 +17,11 @@ struct TaskFrame {
     pub handle: Option<JoinHandle<()>>,
 }
 
-pub async fn task_daemon(config_page_name: String, api: Arc<RwLock<Api>>, assert: Option<APIAssertType>) -> Result<(), PLBotError> {
+pub async fn task_daemon(config_page_name: String, api: Api, assert: Option<APIAssertType>) -> Result<(), PLBotError> {
     let config_page: Page;
-    {
-        let api = api.read().await;
-        let config_title = Title::new_from_full(&config_page_name, &api);
-        config_page = Page::new(config_title);
-    }
+    let config_title = Title::new_from_full(&config_page_name, &api);
+    config_page = Page::new(config_title);
+
     let default_config: Arc<RwLock<TaskConfig>> = Arc::new(RwLock::new(TaskConfig::new()));
     let output_header: Arc<RwLock<String>> = Arc::new(RwLock::new(String::new()));
     let deny_ns: Arc<RwLock<HashSet<NamespaceID>>> = Arc::new(RwLock::new(HashSet::new()));
@@ -31,6 +29,7 @@ pub async fn task_daemon(config_page_name: String, api: Arc<RwLock<Api>>, assert
     // set up a task info hashmap
     // use the pageid as key, this enables us to track a task page after moving
     let mut taskmap: HashMap<String, TaskFrame> = HashMap::new();
+    let write_lock: Arc<Mutex<bool>> = Arc::new(Mutex::new(true));
 
     loop {
         // logs the current time
@@ -38,7 +37,6 @@ pub async fn task_daemon(config_page_name: String, api: Arc<RwLock<Api>>, assert
         // fetch site configuration
         let config: SiteConfig;
         {
-            let api = api.read().await;
             let config_raw = config_page.text(&api).await;
             if config_raw.is_err() {
                 return Err(PLBotError::Config);
@@ -70,7 +68,6 @@ pub async fn task_daemon(config_page_name: String, api: Arc<RwLock<Api>>, assert
             // fetch a list of tasks
             let tasklist: Map<String, serde_json::Value>;
             {
-                let api = api.read().await;
                 let taskdir_title = Title::new_from_full(&config.taskdir, &api);
                 let mut params = api.params_into(&[
                     ("utf8", "1"),
@@ -115,7 +112,7 @@ pub async fn task_daemon(config_page_name: String, api: Arc<RwLock<Api>>, assert
                 let thistask = taskmap.get(task_pageid);
                 if thistask.is_none() {
                     let mut newtaskframe: TaskFrame = TaskFrame{ delete: true, status: Arc::new(RwLock::new(TaskStatus::Standby)), handle: None };
-                    newtaskframe.handle = Some(tokio::spawn(task_runner(task_pageid.clone(), api.clone(), assert, newtaskframe.status.clone(), default_config.clone(), deny_ns.clone(), output_header.clone())));
+                    newtaskframe.handle = Some(tokio::spawn(task_runner(task_pageid.clone(), api.clone(), write_lock.clone(), assert, newtaskframe.status.clone(), default_config.clone(), deny_ns.clone(), output_header.clone())));
                     taskmap.insert(task_pageid.clone(), newtaskframe);
                 }
                 let thistask = taskmap.get_mut(task_pageid).unwrap();

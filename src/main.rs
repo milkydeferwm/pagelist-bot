@@ -6,10 +6,10 @@ extern crate plbot_base;
 extern crate plbot_parser;
 extern crate plbot_solver;
 
-use std::{fs, sync::Arc};
+use std::fs;
 use serde_json::Value;
 use mediawiki::api::Api;
-use tokio::{spawn, sync::RwLock};
+use tokio::spawn;
 
 mod routine;
 mod arg;
@@ -34,7 +34,6 @@ async fn main() {
     api.set_max_retry_attempts(3);
     api.set_user_agent(format!("Page List Bot / via User:{}", login.username));
     api.login(login.username, login.password).await.expect("cannot log in");
-    let api = Arc::new(RwLock::new(api));
 
     let _daemon_handler = spawn(
         routine::task_daemon(profile.config.clone(), api.clone(), profile.assert)
