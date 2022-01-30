@@ -74,6 +74,12 @@ impl SetConstraint {
     }
 }
 
+impl Default for SetConstraint {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 #[derive(Debug, Clone)]
 pub enum Instruction {
     // Binary
@@ -97,31 +103,19 @@ pub enum Instruction {
 impl Instruction {
 
     pub fn is_binary_op(&self) -> bool {
-        match *self {
-            Self::And {..} | Self::Or {..} | Self::Exclude {..} | Self::Xor {..} => true,
-            _ => false,
-        }
+        matches!(*self, Self::And {..} | Self::Or {..} | Self::Exclude {..} | Self::Xor {..})
     }
 
     pub fn is_unary_op(&self) -> bool {
-        match *self {
-            Self::LinkTo {..} | Self::EmbeddedIn {..} | Self::InCat {..} | Self::Toggle {..} | Self::Prefix {..} => true,
-            _ => false,
-        }
+        matches!(*self, Self::Link {..} | Self::LinkTo {..} | Self::EmbeddedIn {..} | Self::InCat {..} | Self::Toggle {..} | Self::Prefix {..})
     }
 
     pub fn is_primitive_op(&self) -> bool {
-        match *self {
-            Self::Set {..} => true,
-            _ => false,
-        }
+        matches!(*self, Self::Set {..})
     }
 
     pub fn is_nop(&self) -> bool {
-        match *self {
-            Self::Nop {..} => true,
-            _ => false,
-        }
+        matches!(*self, Self::Nop {..})
     }
 
     pub fn get_dest(&self) -> RegID {
