@@ -64,6 +64,8 @@ pub async fn task_daemon(config_page_name: String, api: Arc<RwLock<Api>>, assert
             *deny_ns = HashSet::from_iter(config.denyns.iter().cloned());
         }
 
+        // use a never-loop to emulate goto
+        #[allow(clippy::never_loop)]
         loop {
             // fetch a list of tasks
             let tasklist: Map<String, serde_json::Value>;

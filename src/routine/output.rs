@@ -7,7 +7,7 @@ use md5::{Md5, Digest};
 
 use super::types::EditPageError;
 
-pub fn generate_text(list: &Vec<Title>, api: &Api, before_list_text: &str, list_item_text: &str, between_item_text: &str, after_list_text: &str) -> String {
+pub fn generate_text(list: &[Title], api: &Api, before_list_text: &str, list_item_text: &str, between_item_text: &str, after_list_text: &str) -> String {
     let list_size = list.len();
     let mut output: String = String::new();
     output.push_str(&substitute_str_template(before_list_text, list_size));
@@ -29,12 +29,10 @@ fn substitute_str_template(template: &str, total_num: usize) -> String {
                 _ => { output.push('$'); output.push(char); },
             }
             escape = false;
+        } else if char == '$' {
+            escape = true;
         } else {
-            if char == '$' {
-                escape = true;
-            } else {
-                output.push(char);
-            }
+            output.push(char);
         }
     }
     output
@@ -48,7 +46,7 @@ fn substitute_str_template_with_title(template: &str, t: &Title, current_num: us
             // only accept $0 (full name), $1 (namespace), $2 (name), $@ (current index), $+ (total size), $$ ($)
             match char {
                 '$' => { output.push('$'); },
-                '0' => { output.push_str(&t.full_pretty(api).unwrap_or("".to_string())); },
+                '0' => { output.push_str(&t.full_pretty(api).unwrap_or_else(|| "".to_string())); },
                 '1' => { output.push_str(t.namespace_name(api).unwrap_or("")); },
                 '2' => { output.push_str(t.pretty()); },
                 '@' => { output.push_str(&current_num.to_string()) },
@@ -56,12 +54,10 @@ fn substitute_str_template_with_title(template: &str, t: &Title, current_num: us
                 _ => { output.push('$'); output.push(char); },
             }
             escape = false;
+        } else if char == '$' {
+            escape = true;
         } else {
-            if char == '$' {
-                escape = true;
-            } else {
-                output.push(char);
-            }
+            output.push(char);
         }
     }
     output
@@ -75,7 +71,7 @@ fn substitute_str_template_with_title(template: &str, t: &Title, current_num: us
 /// 
 /// 
 pub async fn write_page(page: &Page, api: &mut Api, text: impl Into<String>, summary: impl Into<String>, assert: Option<APIAssertType>, bot: bool) -> Result<(), EditPageError> {
-    let title = page.title().full_pretty(api).ok_or_else(|| EditPageError::BadTitle)?;
+    let title = page.title().full_pretty(api).ok_or(EditPageError::BadTitle)?;
     // if the target page is a redirect or does not exist, stop
     let mut params = api.params_into(&[
         ("utf8", "1"),
@@ -129,7 +125,7 @@ pub async fn write_page(page: &Page, api: &mut Api, text: impl Into<String>, sum
         _ => {
             let ecode = result["code"].as_str().unwrap_or("<unknown>");
             let einfo = result["info"].as_str().unwrap_or("<unknown>");
-            return Err(EditPageError::from((String::from(ecode), String::from(einfo))));
+            Err(EditPageError::from((String::from(ecode), String::from(einfo))))
         },
     }
 }

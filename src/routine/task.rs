@@ -114,12 +114,10 @@ pub async fn task_runner(id: String, api: Arc<RwLock<Api>>, assert: Option<APIAs
                             content.push_str(&format!("<noinclude>{{{{{header}|taskid={id}|status=success}}}}</noinclude>", header=header, id=id));
                             let mut titles_vec: Vec<Title> = Vec::from_iter(s.iter().cloned());
                             titles_vec.sort_by(|a, b| {
-                                if a.namespace_id() < b.namespace_id() {
-                                    std::cmp::Ordering::Less
-                                } else if a.namespace_id() > b.namespace_id() {
-                                    std::cmp::Ordering::Greater
-                                } else {
-                                    a.pretty().cmp(&b.pretty())
+                                match a.namespace_id().cmp(&b.namespace_id()) {
+                                    std::cmp::Ordering::Greater => std::cmp::Ordering::Greater,
+                                    std::cmp::Ordering::Less => std::cmp::Ordering::Less,
+                                    std::cmp::Ordering::Equal => a.pretty().cmp(b.pretty()),
                                 }
                             });
                             titles_sorted = Some(titles_vec);
@@ -194,10 +192,10 @@ pub async fn parse_and_query(expr: &str, api: &Api, assert: Option<APIAssertType
         query_inst = query_result.unwrap();
     }
     println!("Running solve");
-    let solve_result = plbot_solver::solve_api(&query_inst, &api, assert, default_limit).await;
+    let solve_result = plbot_solver::solve_api(&query_inst, api, assert, default_limit).await;
     if solve_result.is_err() {
-        return Err(String::from("runtime"));
+        Err(String::from("runtime"))
     } else {
-        return Ok(solve_result.unwrap());
+        Ok(solve_result.unwrap())
     }
 }
