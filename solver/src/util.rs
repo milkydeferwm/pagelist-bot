@@ -12,20 +12,20 @@ use crate::Register;
 
 pub(crate) fn get_set_1<'a>(reg: &'a Register, reg_id: &'a RegID) -> Result<&'a HashSet<Title>, SolveError> {
     let set = reg.get(reg_id);
-    if set.is_none() {
-        Err(SolveError::UnknownIntermediateValue)
+    if let Some(s) = set {
+        Ok(s)
     } else {
-        Ok(set.unwrap())
+        Err(SolveError::UnknownIntermediateValue)
     }
 }
 
 pub(crate) fn get_set_2<'a>(reg: &'a Register, reg_id1: &'a RegID, reg_id2: &'a RegID) -> Result<(&'a HashSet<Title>, &'a HashSet<Title>), SolveError> {
     let set1 = reg.get(reg_id1);
     let set2 = reg.get(reg_id2);
-    if set1.is_none() || set2.is_none() {
-        Err(SolveError::UnknownIntermediateValue)
+    if let (Some(s1), Some(s2)) = (set1, set2) {
+        Ok((s1, s2))
     } else {
-        Ok((set1.unwrap(), set2.unwrap()))
+        Err(SolveError::UnknownIntermediateValue)
     }
 }
 

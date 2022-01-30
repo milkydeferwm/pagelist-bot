@@ -64,8 +64,9 @@ fn pages_object_to_titles_set(data: &serde_json::Value, redirected: bool, redire
 /// `follow_redir`: Whether should follow redirects. Usually you don't want to do this, because the redirects returned from this function all link to the page you are querying.
 /// 
 /// `limit`: Query limit.
+#[allow(clippy::too_many_arguments)]
 pub(crate) async fn get_backlinks_one(title: &Title, api: &Api, assert: Option<APIAssertType>, ns: Option<&HashSet<NamespaceID>>, level_2: bool, redirect_strat: RedirectFilterStrategy, follow_redir: bool, limit: i64) -> Result<HashSet<Title>, SolveError> {
-    let elem_name = title.full_pretty(&api);
+    let elem_name = title.full_pretty(api);
     if elem_name.is_none() {
         Ok(HashSet::new())
     } else {
@@ -258,7 +259,7 @@ pub(crate) async fn get_prefix_index_one(title: &Title, api: &Api, assert: Optio
 /// 
 /// `limit`: Query limit.
 pub(crate) async fn get_embed_one(title: &Title, api: &Api, assert: Option<APIAssertType>, ns: Option<&HashSet<NamespaceID>>, redirect_strat: RedirectFilterStrategy, follow_redir: bool, limit: i64) -> Result<HashSet<Title>, SolveError> {
-    let elem_name = title.full_pretty(&api);
+    let elem_name = title.full_pretty(api);
     if elem_name.is_none() {
         Ok(HashSet::new())
     } else {
@@ -298,7 +299,7 @@ pub(crate) async fn get_embed_one(title: &Title, api: &Api, assert: Option<APIAs
 /// 
 /// `limit`: Query limit
 pub(crate) async fn get_links_one(title: &Title, api: &Api, assert: Option<APIAssertType>, ns: Option<&HashSet<NamespaceID>>, follow_redir: bool, limit: i64) -> Result<HashSet<Title>, SolveError> {
-    let elem_name = title.full_pretty(&api);
+    let elem_name = title.full_pretty(api);
     if elem_name.is_none() {
         Ok(HashSet::new())
     } else {
