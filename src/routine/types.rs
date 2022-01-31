@@ -68,45 +68,6 @@ pub enum TaskStatus {
 }
 
 #[derive(Debug)]
-pub enum PLBotError {
-    Config,
-    Parser(plbot_parser::PLBotParserError),
-    Solver(plbot_solver::SolveError),
-    Output(EditPageError),
-}
-
-impl std::error::Error for PLBotError {}
-unsafe impl Send for PLBotError {}
-impl std::fmt::Display for PLBotError {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            Self::Config => write!(f, "cannot load on-site configuration"),
-            Self::Parser(e) => e.fmt(f),
-            Self::Solver(e) => e.fmt(f),
-            Self::Output(e) => e.fmt(f),
-        }
-    }
-}
-
-impl From<plbot_parser::PLBotParserError> for PLBotError {
-    fn from(e: plbot_parser::PLBotParserError) -> Self {
-        Self::Parser(e)
-    }
-}
-
-impl From<plbot_solver::SolveError> for PLBotError {
-    fn from(e: plbot_solver::SolveError) -> Self {
-        Self::Solver(e)
-    }
-}
-
-impl From<EditPageError> for PLBotError {
-    fn from(e: EditPageError) -> Self {
-        Self::Output(e)
-    }
-}
-
-#[derive(Debug)]
 pub enum EditPageError {
     BadTitle,
     RedirectOrMissing,

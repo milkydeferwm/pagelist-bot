@@ -17,7 +17,7 @@ struct TaskFrame {
     pub handle: Option<JoinHandle<()>>,
 }
 
-pub async fn task_daemon(config_page_name: String, api: Api, assert: Option<APIAssertType>) -> Result<(), PLBotError> {
+pub async fn task_daemon(config_page_name: String, api: Api, assert: Option<APIAssertType>) {
     let config_page: Page;
     let config_title = Title::new_from_full(&config_page_name, &api);
     config_page = Page::new(config_title);
@@ -39,12 +39,12 @@ pub async fn task_daemon(config_page_name: String, api: Api, assert: Option<APIA
         {
             let config_raw = config_page.text(&api).await;
             if config_raw.is_err() {
-                return Err(PLBotError::Config);
+                break;
             }
             let config_raw = config_raw.unwrap();
             let config_json = serde_json::from_str(&config_raw);
             if config_json.is_err() {
-                return Err(PLBotError::Config);
+                break;
             }
             config = config_json.unwrap();
         }
@@ -130,5 +130,11 @@ pub async fn task_daemon(config_page_name: String, api: Api, assert: Option<APIA
         // now, hibernate
         println!("Goes hibernate");
         time::sleep_until(now + time::Duration::from_secs(config.interval)).await;
+    }
+    // cleanup, that is, kill all tasks
+    for (_, frame) in &taskmap {
+        if let Some(hand) = &frame.handle {
+            hand.abort();
+        }
     }
 }
