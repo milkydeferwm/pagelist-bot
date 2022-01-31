@@ -65,6 +65,16 @@ pub async fn task_daemon(config_page_name: String, api: Api, assert: Option<APIA
         // use a never-loop to emulate goto
         #[allow(clippy::never_loop)]
         loop {
+            // if not activated, kill all tasks and sleep
+            if !config.activate {
+                for (_, frame) in &taskmap {
+                    if let Some(hand) = &frame.handle {
+                        hand.abort();
+                    }
+                }
+                taskmap.clear();
+                break;
+            }
             // fetch a list of tasks
             let tasklist: Map<String, serde_json::Value>;
             {
