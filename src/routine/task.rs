@@ -51,7 +51,7 @@ async fn fetch_text_by_id(id: &str, api: &Api, assert: Option<APIAssertType>) ->
 }
 
 #[allow(clippy::too_many_arguments)]
-pub async fn task_runner(id: String, mut api: Api, write_lock: Arc<Mutex<bool>>, assert: Option<APIAssertType>, status: Arc<RwLock<TaskStatus>>, default_config: Arc<RwLock<TaskConfig>>, deny_ns: Arc<RwLock<HashSet<NamespaceID>>>, header: Arc<RwLock<String>>) {
+pub async fn task_runner(id: String, mut api: Api, write_lock: Arc<Mutex<()>>, assert: Option<APIAssertType>, status: Arc<RwLock<TaskStatus>>, default_config: Arc<RwLock<TaskConfig>>, deny_ns: Arc<RwLock<HashSet<NamespaceID>>>, header: Arc<RwLock<String>>) {
     loop {
         // logs the current time
         let now = time::Instant::now();
@@ -159,7 +159,7 @@ pub async fn task_runner(id: String, mut api: Api, write_lock: Arc<Mutex<bool>>,
             // write page
             let write_result;
             {
-                let _ = write_lock.lock();
+                write_lock.lock();
                 write_result = output::write_page(&target_page, &mut api, content_clone, summary, assert, true).await;
             }
             if write_result.is_err() {
