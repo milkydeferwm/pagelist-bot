@@ -9,7 +9,6 @@ extern crate plbot_solver;
 use std::fs;
 use serde_json::Value;
 use mediawiki::api::Api;
-use tokio::spawn;
 
 mod routine;
 mod arg;
@@ -35,16 +34,19 @@ async fn main() {
     api.set_user_agent(format!("Page List Bot / via User:{}", login.username));
     api.login(login.username, login.password).await.expect("cannot log in");
 
-    let _daemon_handler = spawn(
-        routine::task_daemon(profile.config.clone(), api.clone(), profile.assert)
-    );
-
-    match tokio::signal::ctrl_c().await {
-        Ok(()) => {},
-        Err(err) => {
-            eprintln!("Unable to listen for shutdown signal: {}", err);
-        },
-    }
+    tokio::select! {
+        _ = routine::task_daemon(profile.config.clone(), api.clone(), profile.assert) => {
+            eprintln!("Task daemon unexpectedly exits");
+        }
+        ctrl_c_res = tokio::signal::ctrl_c() => {
+            match ctrl_c_res {
+                Ok(()) => {},
+                Err(err) => {
+                    eprintln!("Unable to listen for shutdown signal: {}", err);
+                },
+            }
+        }
+    };
 
     println!("Shut down all tasks.");
 }
