@@ -159,7 +159,7 @@ pub async fn task_runner(id: String, mut api: Api, write_lock: Arc<Mutex<()>>, a
             // write page
             let write_result;
             {
-                write_lock.lock();
+                write_lock.lock().await;
                 write_result = output::write_page(&target_page, &mut api, content_clone, summary, assert, true).await;
             }
             if write_result.is_err() {
