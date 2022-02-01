@@ -6,7 +6,7 @@ use serde_json::Map;
 use tokio::sync::{Mutex, RwLock};
 use tokio::task::JoinHandle;
 use tokio::time;
-use tracing::{debug_span, info_span, debug, info, warn, error, Instrument};
+use tracing::{info_span, debug, info, warn, error, Instrument};
 use mediawiki::{page::Page, title::Title, api::Api};
 
 use super::task::task_runner;
@@ -180,13 +180,13 @@ async fn task_daemon_one_pass(config_page: &Page, api: &Api, assert: Option<APIA
 }
 
 pub async fn task_daemon(config_page_name: String, api: Api, assert: Option<APIAssertType>) {
-    let config_page = debug_span!(target: "task daemon", parent: None, "config").in_scope(|| {
+    let config_page = info_span!(target: "task daemon", parent: None, "config").in_scope(|| {
         debug!(target: "task daemon", "on-site global config page: {}", &config_page_name);
         let config_title = Title::new_from_full(&config_page_name, &api);
         Page::new(config_title)
     });
 
-    let (default_config, output_header, deny_ns) = debug_span!(target: "task daemon", parent: None, "resource").in_scope(|| {
+    let (default_config, output_header, deny_ns) = info_span!(target: "task daemon", parent: None, "resource").in_scope(|| {
         debug!(target: "task daemon", "initializing shared resources");
         (
             Arc::new(RwLock::new(TaskConfig::new())),
@@ -197,12 +197,12 @@ pub async fn task_daemon(config_page_name: String, api: Api, assert: Option<APIA
 
     // set up a task info hashmap
     // use the pageid as key, this enables us to track a task page after moving
-    let mut taskmap = debug_span!(target: "task daemon", parent: None, "task map").in_scope(|| {
+    let mut taskmap = info_span!(target: "task daemon", parent: None, "task map").in_scope(|| {
         debug!(target: "task daemon", "initializing task map");
         HashMap::<String, TaskFrame>::new()
     });
 
-    let write_lock = debug_span!(target: "task daemon", parent: None, "api lock").in_scope(|| {
+    let write_lock = info_span!(target: "task daemon", parent: None, "api lock").in_scope(|| {
         debug!(target: "task daemon", "initializing API locks");
         Arc::new(Mutex::new(()))
     });

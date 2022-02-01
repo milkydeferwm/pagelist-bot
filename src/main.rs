@@ -11,7 +11,7 @@ extern crate plbot_solver;
 use std::fs;
 use serde_json::Value;
 use mediawiki::api::Api;
-use tracing::{debug_span, info_span, debug, info, error, Level, Instrument};
+use tracing::{info_span, debug, info, error, Level, Instrument};
 use tracing_subscriber::fmt::format::FmtSpan;
 
 mod routine;
@@ -27,7 +27,7 @@ async fn main() {
     #[cfg(not(debug_assertions))]
     tracing_subscriber::fmt().with_max_level(Level::INFO).with_span_events(FmtSpan::NONE).init();
 
-    let args = debug_span!(target: "bootstrap", "cli arg").in_scope(|| {
+    let args = info_span!(target: "bootstrap", "cli arg").in_scope(|| {
         debug!(target: "bootstrap", "parsing command line arguments");
         arg::build_argparse().get_matches()
     });

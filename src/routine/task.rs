@@ -4,7 +4,7 @@ use std::collections::HashSet;
 use mediawiki::{api::Api, title::Title, page::{Page, PageError}};
 use plbot_base::{bot::APIAssertType, NamespaceID};
 use tokio::{sync::RwLock, sync::Mutex, time};
-use tracing::{debug, info, warn, error, debug_span, info_span, Instrument};
+use tracing::{debug, info, warn, error, info_span, Instrument};
 
 use super::types::{TaskStatus, TaskConfig, TaskInfo, OutputFormat};
 use super::output;
@@ -129,7 +129,7 @@ async fn task_runner_one_pass(id: &str, api: &mut Api, write_lock: Arc<Mutex<()>
         debug!(target: "task runner", "status updated to running");
     }
     // retrive task page based on page id (aka task id)
-    let task = fetch_task(id, api, assert).instrument(debug_span!(target: "task runner", "task")).await?;
+    let task = fetch_task(id, api, assert).instrument(info_span!(target: "task runner", "task")).await?;
     let deadline = now + time::Duration::from_secs(task.interval);
     // check activate
     if !task.activate {
