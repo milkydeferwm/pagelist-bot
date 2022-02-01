@@ -4,7 +4,7 @@ use std::collections::HashSet;
 use mediawiki::{api::Api, title::Title, page::{Page, PageError}};
 use plbot_base::{bot::APIAssertType, NamespaceID};
 use tokio::{sync::RwLock, sync::Mutex, time};
-use tracing::{debug, info, warn, error, info_span, Instrument};
+use tracing::{info, warn, error, info_span, Instrument};
 
 use super::types::{TaskStatus, TaskConfig, TaskInfo, OutputFormat};
 use super::output;
@@ -53,19 +53,19 @@ async fn fetch_text_by_id(id: &str, api: &Api, assert: Option<APIAssertType>) ->
 
 async fn fetch_task(id: &str, api: &Api, assert: Option<APIAssertType>) -> Result<TaskInfo, ()> {
     info!(target: "task runner", "load task info");
-    debug!(target: "task runner", "access task info");
+    info!(target: "task runner", "access task info");
     let task_content = fetch_text_by_id(id, api, assert).await;
     if task_content.is_err() {
         error!(target: "task runner", "access task info failed");
-        debug!(target: "task runner", "error: {}", task_content.unwrap_err());
+        info!(target: "task runner", "error: {}", task_content.unwrap_err());
         return Err(());
     }
     let task_content = task_content.unwrap();
-    debug!(target: "task runner", "parse task info");
+    info!(target: "task runner", "parse task info");
     let task_json = serde_json::from_str(&task_content);
     if task_json.is_err() {
         error!(target: "task runner", "parse task info failed");
-        debug!(target: "task runner", "error: {}", task_json.unwrap_err());
+        info!(target: "task runner", "error: {}", task_json.unwrap_err());
         return Err(());
     }
     info!(target: "task runner", "load task info success");
@@ -80,22 +80,22 @@ async fn write_a_page(out: &OutputFormat, api: &mut Api, assert: Option<APIAsser
     info!(target: "task runner", "write page");
     // check taboo namespace...
     {
-        debug!(target: "task runner", "checking taboo namespace");
+        info!(target: "task runner", "checking taboo namespace");
         let deny_ns = deny_ns.read().await;
-        debug!(target: "task runner", "deny_ns lock acquired");
+        info!(target: "task runner", "deny_ns lock acquired");
         if deny_ns.contains(&target_page.title().namespace_id()) {
             warn!(target: "task runner", "write page in forbidden namespace {}, skipping", &target_page.title().namespace_id());
             return;
         }
     }
     // set content to write
-    debug!(target: "task runner", "generate edit content");
+    info!(target: "task runner", "generate edit content");
     if let Some(titles) = titles_sorted {
         let output_text = output::generate_text(titles, api, &out.before,&out.item, &out.between, &out.after);
         content.push_str(&output_text);
     }
     // set edit summary
-    debug!(target: "task runner", "set edit summary");
+    info!(target: "task runner", "set edit summary");
     let summary: String = match titles_sorted {
         None => String::from("Update query: failure"),
         Some(c) => format!("Update query: {} result(s)", c.len()),
@@ -104,12 +104,12 @@ async fn write_a_page(out: &OutputFormat, api: &mut Api, assert: Option<APIAsser
     let write_result;
     {
         write_lock.lock().await;
-        debug!(target: "task runner", "write lock acquired");
+        info!(target: "task runner", "write lock acquired");
         write_result = output::write_page(&target_page, api, content, summary, assert, true).await;
     }
     if write_result.is_err() {
         warn!(target: "task runner", "write page failed");
-        debug!(target: "task runner", "error: {}", write_result.unwrap_err());
+        info!(target: "task runner", "error: {}", write_result.unwrap_err());
     } else {
         info!(target: "task runner", "write page successful");
     }
@@ -122,11 +122,11 @@ async fn task_runner_one_pass(id: &str, api: &mut Api, write_lock: Arc<Mutex<()>
     info!(target: "task runner", "task start");
     // update status running
     {
-        debug!(target: "task runner", "update task status");
+        info!(target: "task runner", "update task status");
         let mut status = status.write().await;
-        debug!(target: "task runner", "task status lock acquired");
+        info!(target: "task runner", "task status lock acquired");
         *status = TaskStatus::Running;
-        debug!(target: "task runner", "status updated to running");
+        info!(target: "task runner", "status updated to running");
     }
     // retrive task page based on page id (aka task id)
     let task = fetch_task(id, api, assert).instrument(info_span!(target: "task runner", "task")).await?;
@@ -140,11 +140,11 @@ async fn task_runner_one_pass(id: &str, api: &mut Api, write_lock: Arc<Mutex<()>
     let timeout: u64;
     let limit: i64;
     {
-        debug!(target: "task runner", "determine task config");
+        info!(target: "task runner", "determine task config");
         let default_config = default_config.read().await;
         timeout = task.timeout.unwrap_or(default_config.timeout);
         limit = task.querylimit.unwrap_or(default_config.querylimit);
-        debug!(target: "task runner", "task timeout: {} sec, default limit: {}", timeout, limit);
+        info!(target: "task runner", "task timeout: {} sec, default limit: {}", timeout, limit);
     }
     // do the query
     info!(target: "task runner", "run query");
@@ -155,7 +155,7 @@ async fn task_runner_one_pass(id: &str, api: &mut Api, write_lock: Arc<Mutex<()>
     let titles_sorted: Option<Vec<Title>>;
     {
         let header = header.read().await;
-        debug!(target: "task runner", "header lock acquired");
+        info!(target: "task runner", "header lock acquired");
         match query_result {
             Err(_) => {
                 warn!(target: "task runner", "query timeout");
@@ -192,11 +192,11 @@ async fn task_runner_one_pass(id: &str, api: &mut Api, write_lock: Arc<Mutex<()>
     }
     // update task status and sleep
     {
-        debug!(target: "task runner", "update task status");
+        info!(target: "task runner", "update task status");
         let mut status = status.write().await;
-        debug!(target: "task runner", "task status lock acquired");
+        info!(target: "task runner", "task status lock acquired");
         *status = TaskStatus::Standby;
-        debug!(target: "task runner", "status updated to standby");
+        info!(target: "task runner", "status updated to standby");
     }
     info!(target: "task runner", "hibernate for {} sec", task.interval);
     Ok(deadline)
@@ -210,11 +210,11 @@ pub async fn task_runner(id: String, mut api: Api, write_lock: Arc<Mutex<()>>, a
     }
     // update task status ready to be purged
     {
-        debug!(target: "task runner", "update task status");
+        info!(target: "task runner", "update task status");
         let mut status = status.write().await;
-        debug!(target: "task runner", "task status lock acquired");
+        info!(target: "task runner", "task status lock acquired");
         *status = TaskStatus::Dead;
-        debug!(target: "task runner", "status updated to dead");
+        info!(target: "task runner", "status updated to dead");
     }
 }
 
@@ -224,7 +224,7 @@ pub async fn parse_and_query(expr: &str, api: &Api, assert: Option<APIAssertType
     let query_result = plbot_parser::parse(expr);
     if query_result.is_err() {
         warn!(target: "task runner", "parse failure");
-        debug!(target: "task runner", "error: {}", query_result.unwrap_err());
+        info!(target: "task runner", "error: {}", query_result.unwrap_err());
         return Err(String::from("parse"));
     } else {
         query_inst = query_result.unwrap();
@@ -233,7 +233,7 @@ pub async fn parse_and_query(expr: &str, api: &Api, assert: Option<APIAssertType
     let solve_result = plbot_solver::solve_api(&query_inst, api, assert, default_limit).await;
     if solve_result.is_err() {
         warn!(target: "task runner", "solve failure");
-        debug!(target: "task runner", "error: {}", solve_result.unwrap_err());
+        info!(target: "task runner", "error: {}", solve_result.unwrap_err());
         Err(String::from("solve"))
     } else {
         Ok(solve_result.unwrap())

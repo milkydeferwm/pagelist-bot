@@ -6,7 +6,7 @@ use serde_json::Map;
 use tokio::sync::{Mutex, RwLock};
 use tokio::task::JoinHandle;
 use tokio::time;
-use tracing::{info_span, debug, info, warn, error, Instrument};
+use tracing::{info_span, info, warn, error, Instrument};
 use mediawiki::{page::Page, title::Title, api::Api};
 
 use super::task::task_runner;
@@ -20,18 +20,18 @@ struct TaskFrame {
 
 async fn fetch_config(config_page: &Page, api: &Api) -> Result<SiteConfig, ()> {
     info!(target: "task daemon", "load on-site config");
-    debug!(target: "task daemon", "access on-site config");
+    info!(target: "task daemon", "access on-site config");
     let config_raw = config_page.text(api).await;
     if config_raw.is_err() {
         error!(target: "task daemon", "access on-site config failed");
-        debug!(target: "task daemon", "error: {}", config_raw.unwrap_err());
+        info!(target: "task daemon", "error: {}", config_raw.unwrap_err());
         return Err(());
     }
     let config_raw = config_raw.unwrap();
     let config_json = serde_json::from_str(&config_raw);
     if config_json.is_err() {
         error!(target: "task daemon", "parse on-site config failed");
-        debug!(target: "task daemon", "error: {}", config_json.unwrap_err());
+        info!(target: "task daemon", "error: {}", config_json.unwrap_err());
         return Err(());
     }
     Ok(config_json.unwrap())
@@ -39,8 +39,8 @@ async fn fetch_config(config_page: &Page, api: &Api) -> Result<SiteConfig, ()> {
 
 async fn fetch_tasklist(config: &SiteConfig, api: &Api, assert: Option<APIAssertType>) -> Result<Map<String, serde_json::Value>, ()> {
     info!(target: "task daemon", "load task list");
-    debug!(target: "task daemon", "build query params");
-    debug!(target: "task daemon", "task dir: {}", &config.taskdir);
+    info!(target: "task daemon", "build query params");
+    info!(target: "task daemon", "task dir: {}", &config.taskdir);
     let taskdir_title = Title::new_from_full(&config.taskdir, api);
     let mut params = api.params_into(&[
         ("utf8", "1"),
@@ -54,20 +54,20 @@ async fn fetch_tasklist(config: &SiteConfig, api: &Api, assert: Option<APIAssert
     if let Some(a) = assert {
         params.insert("assert".to_string(), a.to_string());
     };
-    debug!(target: "task daemon", "params: {:?}", &params);
+    info!(target: "task daemon", "params: {:?}", &params);
 
-    debug!(target: "task daemon", "access remote MediaWiki API");
+    info!(target: "task daemon", "access remote MediaWiki API");
     let res = api.get_query_api_json_all(&params).await;
     if res.is_err() {
         warn!(target: "task daemon", "cannot access remote MediaWiki API");
-        debug!(target: "task daemon", "error: {}", res.unwrap_err());
+        info!(target: "task daemon", "error: {}", res.unwrap_err());
         return Err(());
     }
     let tasklist_v = res.unwrap();
     let tasklist_vv = tasklist_v["query"]["pages"].as_object();
     if tasklist_vv.is_none() {
         warn!(target: "task daemon", "cannot get task list");
-        debug!(target: "task daemon", "response: {}", tasklist_v);
+        info!(target: "task daemon", "response: {}", tasklist_v);
         return Err(());
     }
     info!(target: "task daemon", "load task list success");
@@ -87,21 +87,21 @@ async fn task_daemon_one_pass(config_page: &Page, api: &Api, assert: Option<APIA
     async {
         info!(target: "task daemon", "update shared config");
         {
-            debug!(target: "task daemon", "update default_config");
+            info!(target: "task daemon", "update default_config");
             let mut default_config = default_config.write().await;
-            debug!(target: "task daemon", "default_config lock acquired");
+            info!(target: "task daemon", "default_config lock acquired");
             *default_config = config.default.clone();
         }
         {
-            debug!(target: "task daemon", "update output_header");
+            info!(target: "task daemon", "update output_header");
             let mut output_header = output_header.write().await;
-            debug!(target: "task daemon", "output_header lock acquired");
+            info!(target: "task daemon", "output_header lock acquired");
             *output_header = config.resultheader.clone();
         }
         {
-            debug!(target: "task daemon", "update deny_ns");
+            info!(target: "task daemon", "update deny_ns");
             let mut deny_ns = deny_ns.write().await;
-            debug!(target: "task daemon", "deny_ns lock acquired");
+            info!(target: "task daemon", "deny_ns lock acquired");
             *deny_ns = HashSet::from_iter(config.denyns.iter().cloned());
         }
     }.instrument(info_span!(target: "task daemon", "config update")).await;
@@ -118,7 +118,7 @@ async fn task_daemon_one_pass(config_page: &Page, api: &Api, assert: Option<APIA
                     hand.abort();
                 }
             }
-            debug!(target: "task daemon", "clear task map");
+            info!(target: "task daemon", "clear task map");
             taskmap.clear();
             return Ok(deadline);
         }
@@ -181,13 +181,13 @@ async fn task_daemon_one_pass(config_page: &Page, api: &Api, assert: Option<APIA
 
 pub async fn task_daemon(config_page_name: String, api: Api, assert: Option<APIAssertType>) {
     let config_page = info_span!(target: "task daemon", parent: None, "config").in_scope(|| {
-        debug!(target: "task daemon", "on-site global config page: {}", &config_page_name);
+        info!(target: "task daemon", "on-site global config page: {}", &config_page_name);
         let config_title = Title::new_from_full(&config_page_name, &api);
         Page::new(config_title)
     });
 
     let (default_config, output_header, deny_ns) = info_span!(target: "task daemon", parent: None, "resource").in_scope(|| {
-        debug!(target: "task daemon", "initializing shared resources");
+        info!(target: "task daemon", "initializing shared resources");
         (
             Arc::new(RwLock::new(TaskConfig::new())),
             Arc::new(RwLock::new(String::new())),
@@ -198,12 +198,12 @@ pub async fn task_daemon(config_page_name: String, api: Api, assert: Option<APIA
     // set up a task info hashmap
     // use the pageid as key, this enables us to track a task page after moving
     let mut taskmap = info_span!(target: "task daemon", parent: None, "task map").in_scope(|| {
-        debug!(target: "task daemon", "initializing task map");
+        info!(target: "task daemon", "initializing task map");
         HashMap::<String, TaskFrame>::new()
     });
 
     let write_lock = info_span!(target: "task daemon", parent: None, "api lock").in_scope(|| {
-        debug!(target: "task daemon", "initializing API locks");
+        info!(target: "task daemon", "initializing API locks");
         Arc::new(Mutex::new(()))
     });
 

@@ -11,7 +11,7 @@ extern crate plbot_solver;
 use std::fs;
 use serde_json::Value;
 use mediawiki::api::Api;
-use tracing::{info_span, debug, info, error, Instrument};
+use tracing::{info_span, info, error, Instrument};
 use tracing_subscriber::{fmt::format::FmtSpan, filter, prelude::*};
 
 mod routine;
@@ -40,26 +40,26 @@ async fn main() {
         .init();
 
     let args = info_span!(target: "bootstrap", "cli arg").in_scope(|| {
-        debug!(target: "bootstrap", "parsing command line arguments");
+        info!(target: "bootstrap", "parsing command line arguments");
         arg::build_argparse().get_matches()
     });
 
     let (profile, login) = info_span!(target: "bootstrap", "local config").in_scope(|| {
         info!(target: "bootstrap", "reading config files");
-        debug!(target: "bootstrap", "reading site information file");
+        info!(target: "bootstrap", "reading site information file");
         let sites = fs::read_to_string(args.value_of("site").unwrap()).expect("cannot open site information file");
-        debug!(target: "bootstrap", "parsing site information file");
+        info!(target: "bootstrap", "parsing site information file");
         let sites: Value = serde_json::from_str(&sites).expect("cannot parse site information file");
 
         let profile = args.value_of("profile").unwrap();
-        debug!(target: "bootstrap", "fetching profile \"{}\"", profile);
+        info!(target: "bootstrap", "fetching profile \"{}\"", profile);
         let profile: routine::SiteProfile = serde_json::from_value(sites[profile].clone()).expect("cannot find specified site profile");
 
-        debug!(target: "bootstrap", "reading login file");
+        info!(target: "bootstrap", "reading login file");
         let login = fs::read_to_string(args.value_of("login").unwrap()).expect("cannot open login file");
-        debug!(target: "bootstrap", "parsing login file");
+        info!(target: "bootstrap", "parsing login file");
         let login: Value = serde_json::from_str(&login).expect("cannot parse login file.");
-        debug!(target: "bootstrap", "fetching login credential \"{}\"", &profile.login);
+        info!(target: "bootstrap", "fetching login credential \"{}\"", &profile.login);
         let login: routine::LoginCredential = serde_json::from_value(login[&profile.login].clone()).expect("cannot find specified site profile");
 
         info!(target: "bootstrap", "read config files success");
@@ -69,15 +69,15 @@ async fn main() {
     // initialize mediawiki api instance
     let mut api = async {
         info!(target: "bootstrap", "creating API object");
-        debug!(target: "bootstrap", "accessing MediaWiki Action API endpoint \"{}\"", &profile.api);
+        info!(target: "bootstrap", "accessing MediaWiki Action API endpoint \"{}\"", &profile.api);
         let mut api: Api = Api::new(&profile.api).await.expect("cannot access target MediaWiki instance");
-        debug!(target: "bootstrap", "setting up API object maxlag");
+        info!(target: "bootstrap", "setting up API object maxlag");
         api.set_maxlag(Some(5));
-        debug!(target: "bootstrap", "setting up API max retry attempts");
+        info!(target: "bootstrap", "setting up API max retry attempts");
         api.set_max_retry_attempts(3);
-        debug!(target: "bootstrap", "setting up API user agent");
+        info!(target: "bootstrap", "setting up API user agent");
         api.set_user_agent(format!("Page List Bot / via User:{}", &login.username));
-        debug!(target: "bootstrap", "API user agent: {}", api.user_agent());
+        info!(target: "bootstrap", "API user agent: {}", api.user_agent());
         info!(target: "bootstrap", "creating API object success");
         api
     }.instrument(info_span!(target: "bootstrap", "api init")).await;
