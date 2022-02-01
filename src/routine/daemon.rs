@@ -54,7 +54,7 @@ async fn fetch_tasklist(config: &SiteConfig, api: &Api, assert: Option<APIAssert
     if let Some(a) = assert {
         params.insert("assert".to_string(), a.to_string());
     };
-    info!(target: "task daemon", "params: {:?}", &params);
+    // info!(target: "task daemon", "params: {:?}", &params); // currently not needed
 
     info!(target: "task daemon", "access remote MediaWiki API");
     let res = api.get_query_api_json_all(&params).await;
