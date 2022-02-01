@@ -13,7 +13,8 @@ plbot_solver = { path = "solver", version = "0.0.1" }
 mediawiki = "^0.2"
 tokio = { version = "^1.15", features = [ "time" ] }
 tracing = { version = "^0.1" }
-tracing-subscriber = { version = "^0.3", features = [ "local-time" ] }
+tracing-subscriber = { version = "^0.3", features = [ "local-time", "registry" ] }
+tracing-appender = "^0.2"
 clap = { version = "^3.0", features = [ "cargo" ] }
 serde_json = { version = "^1.0" }
 md-5 = "^0.10"

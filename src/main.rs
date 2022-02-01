@@ -11,8 +11,8 @@ extern crate plbot_solver;
 use std::fs;
 use serde_json::Value;
 use mediawiki::api::Api;
-use tracing::{info_span, debug, info, error, Level, Instrument};
-use tracing_subscriber::fmt::format::FmtSpan;
+use tracing::{info_span, debug, info, error, Instrument};
+use tracing_subscriber::{fmt::format::FmtSpan, filter, prelude::*};
 
 mod routine;
 mod arg;
@@ -22,10 +22,22 @@ mod arg;
 #[tokio::main]
 async fn main() {
     // set up subscriber
-    #[cfg(debug_assertions)]
-    tracing_subscriber::fmt().with_max_level(Level::DEBUG).with_span_events(FmtSpan::CLOSE).init();
-    #[cfg(not(debug_assertions))]
-    tracing_subscriber::fmt().with_max_level(Level::INFO).with_span_events(FmtSpan::NONE).init();
+    let file_appender = tracing_appender::rolling::daily("log", "plbot.log");
+    let (non_blocking, _guard) = tracing_appender::non_blocking(file_appender);
+    tracing_subscriber::registry()
+        .with(
+            tracing_subscriber::fmt::layer()
+                .with_span_events(FmtSpan::NONE)
+                .with_filter(filter::LevelFilter::WARN)
+        )
+        .with(
+            tracing_subscriber::fmt::layer()
+                .with_writer(non_blocking)
+                .with_ansi(false)
+                .with_span_events(FmtSpan::CLOSE)
+                .with_filter(filter::LevelFilter::INFO)
+        )
+        .init();
 
     let args = info_span!(target: "bootstrap", "cli arg").in_scope(|| {
         debug!(target: "bootstrap", "parsing command line arguments");
