@@ -1,4 +1,3 @@
 /target
 /log
-Cargo.lock
 *.json
