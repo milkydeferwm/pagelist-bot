@@ -1,0 +1,57 @@
+name: Build Release
+
+on:
+  push:
+    branches: [ main ]
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v2
+    - name: Install toolchain
+      uses: actions-rs/cargo@v1
+      with:
+        toolchain: stable
+    - name: Build
+      run: cargo build --release
+    - name: Upload
+      uses: actions/upload-artifact@v2
+      with:
+        name: ubuntu
+        path: target/release/pagelist-bot
+
+  build-win:
+    runs-on: windows-latest
+    steps:
+    - uses: actions/checkout@v2
+    - name: Install toolchain
+      uses: actions-rs/cargo@v1
+      with:
+        toolchain: stable
+    - name: Build
+      run: cargo build --release
+    - name: Upload
+      uses: actions/upload-artifact@v2
+      with:
+        name: windows
+        path: target/release/pagelist-bot.exe
+
+  build-mac:
+    runs-on: macOS-latest
+    steps:
+    - uses: actions/checkout@v2
+    - name: Install toolchain
+      uses: actions-rs/cargo@v1
+      with:
+        toolchain: stable
+    - name: Build
+      run: cargo build --release
+    - name: Upload
+      uses: actions/upload-artifact@v2
+      with:
+        name: macOS
+        path: target/release/pagelist-bot
