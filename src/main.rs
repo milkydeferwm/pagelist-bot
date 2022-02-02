@@ -22,8 +22,10 @@ mod arg;
 /// Anything related to API is then spawned to `task_daemon`.
 #[tokio::main]
 async fn main() {
+    let args = arg::build_argparse().get_matches();
+
     // set up subscriber
-    let file_appender = tracing_appender::rolling::daily("log", "plbot.log");
+    let file_appender = tracing_appender::rolling::daily(format!("log/{}", args.value_of("profile").unwrap()), "plbot.log");
     let (non_blocking, _guard) = tracing_appender::non_blocking(file_appender);
     tracing_subscriber::registry()
         .with(
@@ -39,11 +41,6 @@ async fn main() {
                 .with_filter(filter::LevelFilter::INFO)
         )
         .init();
-
-    let args = info_span!(target: "bootstrap", "cli arg").in_scope(|| {
-        info!(target: "bootstrap", "parsing command line arguments");
-        arg::build_argparse().get_matches()
-    });
 
     let (profile, login) = info_span!(target: "bootstrap", "local config").in_scope(|| {
         info!(target: "bootstrap", "reading config files");
