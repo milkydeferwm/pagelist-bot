@@ -25,7 +25,7 @@ async fn main() {
     let args = arg::build_argparse().get_matches();
 
     // set up subscriber
-    let file_appender = tracing_appender::rolling::daily(format!("log/{}", args.value_of("profile").unwrap()), "plbot.log");
+    let file_appender = tracing_appender::rolling::daily(format!("logs/{}", args.value_of("profile").unwrap()), "plbot.log");
     let (non_blocking, _guard) = tracing_appender::non_blocking(file_appender);
     tracing_subscriber::registry()
         .with(
