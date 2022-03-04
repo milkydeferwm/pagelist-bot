@@ -164,8 +164,12 @@ pub(crate) async fn get_category_members_one(title: &Title, api: &Api, assert: O
         let mut cmnamespace: HashSet<NamespaceID> = HashSet::new();
         // If we still have some namespaces left in `ns_clone`...
         if let Some(ns_list) = &ns_clone {
+            if ns_list.len() > 0 {
+                cmtype.push("page".to_string());
+                cmnamespace.extend(ns_list);
+            }
+        } else {
             cmtype.push("page".to_string());
-            cmnamespace.extend(ns_list);
         }
         if result_has_ns_file {
             cmtype.push("file".to_string());
@@ -176,7 +180,9 @@ pub(crate) async fn get_category_members_one(title: &Title, api: &Api, assert: O
             cmtype.push("subcat".to_string());
             cmnamespace.insert(plbot_base::NS_CATEGORY);
         }
-        params.insert("gcmnamespace".to_string(), util::concat_params(&cmnamespace));
+        if ns_clone.is_some() {
+            params.insert("gcmnamespace".to_string(), util::concat_params(&cmnamespace));
+        }
         params.insert("gcmtype".to_string(), cmtype.join("|"));
         // fetch results
         let res = api.get_query_api_json_limit(&params, limit_to_max(limit)).await?;
