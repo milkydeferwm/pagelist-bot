@@ -1,3 +1,4 @@
+#![deny(warnings)]
 extern crate mediawiki;
 extern crate clap;
 extern crate tokio;
