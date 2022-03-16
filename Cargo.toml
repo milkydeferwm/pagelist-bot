@@ -1,6 +1,6 @@
 [package]
 name = "pagelist-bot"
-version = "0.0.1"
+version = "1.0.0"
 edition = "2021"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
@@ -9,9 +9,9 @@ edition = "2021"
 strip = true
 
 [dependencies]
-plbot_base = { path = "base", version = "0.0.1" }
-plbot_parser = { path = "parser", version = "0.0.1" }
-plbot_solver = { path = "solver", version = "0.0.1" }
+plbot_base = { path = "base" }
+plbot_parser = { path = "parser" }
+plbot_solver = { path = "solver" }
 
 mediawiki = "^0.2"
 tokio = { version = "^1.15", features = [ "time" ] }

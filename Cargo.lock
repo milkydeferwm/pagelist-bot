@@ -1012,7 +1012,7 @@ dependencies = [
 
 [[package]]
 name = "pagelist-bot"
-version = "0.0.1"
+version = "1.0.0"
 dependencies = [
  "clap",
  "hex",
@@ -1129,7 +1129,7 @@ checksum = "58893f751c9b0412871a09abd62ecd2a00298c6c83befa223ef98c52aef40cbe"
 
 [[package]]
 name = "plbot_base"
-version = "0.0.1"
+version = "1.0.0"
 dependencies = [
  "mediawiki",
  "serde 1.0.136",
@@ -1137,7 +1137,7 @@ dependencies = [
 
 [[package]]
 name = "plbot_parser"
-version = "0.0.1"
+version = "1.0.0"
 dependencies = [
  "lalrpop",
  "lalrpop-util",
@@ -1148,7 +1148,7 @@ dependencies = [
 
 [[package]]
 name = "plbot_solver"
-version = "0.0.1"
+version = "1.0.0"
 dependencies = [
  "mediawiki",
  "plbot_base",
