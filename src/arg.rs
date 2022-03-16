@@ -1,7 +1,7 @@
-use clap::{App, Arg, crate_version};
+use clap::{Command, Arg, crate_version};
 
-pub fn build_argparse() -> App<'static> {
-    App::new("Page List Bot")
+pub fn build_argparse() -> Command<'static> {
+    Command::new("Page List Bot")
         .about("Generate a list of wiki pages based on numerous criteria and set operations")
         .version(crate_version!())
         .args(&[
