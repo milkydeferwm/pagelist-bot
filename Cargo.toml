@@ -5,6 +5,9 @@ edition = "2021"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
+[profile.release]
+strip = true
+
 [dependencies]
 plbot_base = { path = "base", version = "0.0.1" }
 plbot_parser = { path = "parser", version = "0.0.1" }
