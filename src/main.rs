@@ -5,6 +5,7 @@ extern crate tracing;
 extern crate tracing_subscriber;
 extern crate tracing_appender;
 extern crate serde_json;
+extern crate toolforge;
 extern crate plbot_base;
 extern crate plbot_parser;
 extern crate plbot_solver;
