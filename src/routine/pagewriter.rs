@@ -49,7 +49,12 @@ impl<'a> PageWriter<'a> {
 
     fn make_edit_summary(&self, result: &Result<Vec<Title>, QueryExecutorError>) -> String {
         if let Ok(v) = result {
-            format!("Update query: {} result(s)", v.len())
+            let len = v.len();
+            match len {
+                0 => String::from("Update query: 0 results"),
+                1 => String::from("Update query: 1 result"),
+                l => format!("Update query: {} results", l)
+            }
         } else {
             String::from("Update query: failure")
         }
