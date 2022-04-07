@@ -1,5 +1,5 @@
 use std::fs;
-use apidelegate::APIDelegate;
+use apiservice::APIService;
 use serde_json::Value;
 use mediawiki::api::Api;
 use tracing::{info_span, info, trace, error, Instrument};
@@ -10,10 +10,10 @@ mod solver;
 mod routine;
 
 mod arg;
-mod apidelegate;
+mod apiservice;
 mod types;
 
-static API_DELEGATE: APIDelegate = APIDelegate::new();
+static API_SERVICE: APIService = APIService::new();
 
 /// The main function parses command line arguments, and extracts important information from config files.
 /// Anything related to API is then spawned to `task_daemon`.
@@ -77,8 +77,8 @@ async fn main() {
         info!(target: "bootstrap", "creating API object success");
         api
     }.instrument(info_span!(target: "bootstrap", "api init")).await; */
-    API_DELEGATE.setup(login, profile);
-    API_DELEGATE.start();
+    API_SERVICE.setup(login, profile);
+    API_SERVICE.start();
 /* 
     async {
         info!(target: "bootstrap", "logging in as user \"{}\"", &login.username);

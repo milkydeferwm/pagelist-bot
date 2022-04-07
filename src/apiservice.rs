@@ -1,40 +1,46 @@
-//! API Delegate holds the MediaWiki API object.
+//! API Service holds the MediaWiki API object.
 
-use std::collections::HashMap;
+use std::{collections::HashMap, sync::Arc};
 
-use mediawiki::{api::Api, media_wiki_error::MediaWikiError};
+use mediawiki::{api::Api, media_wiki_error::MediaWikiError, title::Title};
 use serde_json::Value;
 use tokio::sync::Mutex;
 use crate::types::{LoginCredential, SiteProfile};
 
-pub enum APIDelegateError {
+#[derive(Debug)]
+pub enum APIServiceError {
     NoAPI,
     Client(MediaWikiError),
     Server(Value),
 }
 
-impl From<MediaWikiError> for APIDelegateError {
+// impl std::error::Error for APIServiceError {}
+unsafe impl Send for APIServiceError {}
+
+impl From<MediaWikiError> for APIServiceError {
     fn from(e: MediaWikiError) -> Self {
         Self::Client(e)
     }
 }
 
-pub struct APIDelegate {
+pub struct APIService {
     login: Option<LoginCredential>,
     profile: Option<SiteProfile>,
 
-    api: Mutex<Option<Api>>,
+    api: Option<Api>,
+    network_lock: Arc<Mutex<()>>,
     csrf: String,
 }
 
-impl APIDelegate {
+impl APIService {
 
     /// Creates an APIDelegare instance
     pub fn new() -> Self {
-        APIDelegate {
+        APIService {
             login: None,
             profile: None,
-            api: Mutex::new(None),
+            api: None,
+            network_lock: Arc::new(Mutex::new(())),
             csrf: "".to_string(),
         }
     }
@@ -45,72 +51,100 @@ impl APIDelegate {
     }
 
     /// Send a request via GET
-    pub async fn get(&self, params: &HashMap<String, String>) -> Result<Value, APIDelegateError> {
-        let api = self.api.lock().await;
-        if let Some(api) = &*api {
+    pub async fn get(&self, params: &HashMap<String, String>) -> Result<Value, APIServiceError> {
+        if let Some(api) = &self.api {
             let mut params = params.clone();
             self.param_decorate(&mut params);
             let resp = api.get_query_api_json(&params).await?;
             if let Some(errobj) = resp.get("error") {
-                Err(APIDelegateError::Server(errobj.clone()))
+                Err(APIServiceError::Server(errobj.clone()))
             } else {
                 Ok(resp)
             }
         } else {
-            Err(APIDelegateError::NoAPI)
+            Err(APIServiceError::NoAPI)
         }
     }
 
     /// Send a request via GET
-    pub async fn get_limit(&self, params: &HashMap<String, String>, max: Option<usize>) -> Result<Value, APIDelegateError> {
-        let api = self.api.lock().await;
-        if let Some(api) = &*api {
+    pub async fn get_limit(&self, params: &HashMap<String, String>, max: Option<usize>) -> Result<Value, APIServiceError> {
+        if let Some(api) = &self.api {
             let mut params = params.clone();
             self.param_decorate(&mut params);
             let resp = api.get_query_api_json_limit(&params, max).await?;
             if let Some(errobj) = resp.get("error") {
-                Err(APIDelegateError::Server(errobj.clone()))
+                Err(APIServiceError::Server(errobj.clone()))
             } else {
                 Ok(resp)
             }
         } else {
-            Err(APIDelegateError::NoAPI)
+            Err(APIServiceError::NoAPI)
         }
     }
 
     /// Send a request via GET
-    pub async fn get_all(&self, params: &HashMap<String, String>) -> Result<Value, APIDelegateError> {
+    pub async fn get_all(&self, params: &HashMap<String, String>) -> Result<Value, APIServiceError> {
         self.get_limit(params, None).await
     }
 
     /// Send a request via POST
-    pub async fn post(&self, params: &HashMap<String, String>) -> Result<Value, APIDelegateError> {
-        let api = self.api.lock().await;
-        if let Some(api) = &*api {
-            let mut params = params.clone();
+    pub async fn post(&self, params: &HashMap<String, String>) -> Result<Value, APIServiceError> {
+        if let Some(api) = &self.api {
+            let mut params = params.to_owned();
             self.param_decorate(&mut params);
             let resp = api.post_query_api_json(&params).await?;
             if let Some(errobj) = resp.get("error") {
-                Err(APIDelegateError::Server(errobj.clone()))
+                Err(APIServiceError::Server(errobj.clone()))
             } else {
                 Ok(resp)
             }
         } else {
-            Err(APIDelegateError::NoAPI)
+            Err(APIServiceError::NoAPI)
         }
+    }
+
+    pub async fn post_edit(&self, params: &HashMap<String, String>) -> Result<Value, APIServiceError> {
+        // Add an bot edit flag to params, if it does not exist
+        let mut params = params.to_owned();
+        if !params.contains_key("bot") && self.profile.as_ref().unwrap().botflag {
+            params.insert("bot".to_string(), "1".to_string());
+        }
+        self.post(&params).await
     }
 
     /// Get csrf token
     pub fn csrf(&self) -> String {
-        return self.csrf.clone();
+        self.csrf.clone()
+    }
+
+    pub fn get_lock(&self) -> Arc<Mutex<()>> {
+        self.network_lock.clone()
+    }
+
+    /// Convert Title object to full pretty title
+    pub fn full_pretty(&self, title: &Title) -> Result<Option<String>, APIServiceError> {
+        if let Some(api) = &self.api {
+            Ok(title.full_pretty(api))
+        } else {
+            Err(APIServiceError::NoAPI)
+        }
+    }
+
+    /// Convert Title object to namespace name
+    pub fn namespace_name<'a>(&self, title: &Title) -> Result<Option<&'a str>, APIServiceError> {
+        if let Some(api) = &self.api {
+            Ok(title.namespace_name(api))
+        } else {
+            Err(APIServiceError::NoAPI)
+        }
     }
 
     #[inline]
-    pub(crate) fn extract_base_username(&self) -> String {
+    fn extract_base_username(&self) -> String {
         self.login.unwrap().username.split('@').next().unwrap().to_string()
     }
 
-    pub(crate) fn param_decorate(&self, params: &mut HashMap<String, String>) {
+    fn param_decorate(&self, params: &mut HashMap<String, String>) {
         // Add a format to params, if it does not exist
         if !params.contains_key("format") {
             params.insert("format".to_string(), "json".to_string());
@@ -143,8 +177,9 @@ impl APIDelegate {
             loop {
                 interval.tick().await;
                 // Require a lock
-                let mut api = self.api.lock().await;
-                if let Some(api) = &mut *api {
+                let _ = self.network_lock.lock().await;
+
+                if let Some(api) = &mut self.api {
                     // Tries to send a request to check for login status
                     let mut params = api.params_into(&[("action", "query")]);
                     self.param_decorate(&mut params);
@@ -170,7 +205,7 @@ impl APIDelegate {
                         if let Ok(csrf) = api_obj.get_edit_token().await {
                             self.csrf = csrf;
                         }
-                        *api = Some(api_obj);
+                        self.api = Some(api_obj);
                     }
                 }
             }

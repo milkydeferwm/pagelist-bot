@@ -3,7 +3,7 @@ pub struct TaskInfo {
     pub activate: bool,
     pub description: String,
     pub expr: String,
-    pub interval: u64,
+    pub cron: String,
     pub timeout: Option<u64>,
     pub querylimit: Option<i64>,
     pub output: Vec<OutputFormat>,
