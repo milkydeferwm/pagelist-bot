@@ -1,12 +1,5 @@
-//! plbot_base
-//! Base definitions across multiple crates
-//! 
-
-pub mod ir;
-pub mod bot;
-
-pub use mediawiki::api::NamespaceID;
-pub type Query = (Vec<ir::Instruction>, ir::RegID);
+#![allow(dead_code)]
+use mediawiki::api::NamespaceID;
 
 // Default namespace constants. Bundled with standard MediaWiki installations and could be seen as universal.
 pub const NS_MAIN: NamespaceID = 0;

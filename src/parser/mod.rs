@@ -2,7 +2,6 @@
 //! Parser crate for pagelist-bot
 //! 
 
-extern crate plbot_base;
 extern crate lalrpop_util;
 extern crate unescape;
 
@@ -11,10 +10,13 @@ mod grammar;
 mod optim;
 mod convert;
 mod error;
+pub(crate) mod ir;
 
 pub use error::PLBotParserError;
 
-type PLBotParseResult = Result<plbot_base::Query, PLBotParserError>;
+pub type Query = (Vec<ir::Instruction>, ir::RegID);
+
+type PLBotParseResult = Result<Query, PLBotParserError>;
 
 pub fn parse(src: &str) -> PLBotParseResult {
     let ast_res = grammar::ExprParser::new().parse(src);

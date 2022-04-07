@@ -1,0 +1,3 @@
+struct PageWriter<'a> {
+    outputs
+}

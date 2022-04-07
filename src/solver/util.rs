@@ -1,14 +1,13 @@
 
-use crate::error::SolveError;
+use super::error::SolveError;
 
-use plbot_base::bot::APIAssertType;
-use plbot_base::ir::RegID;
+use crate::types::APIAssertType;
+use crate::parser::ir::RegID;
 
 use std::collections::{HashSet, HashMap};
 use mediawiki::title::Title;
 
-
-use crate::Register;
+use super::Register;
 
 pub(crate) fn get_set_1<'a>(reg: &'a Register, reg_id: &'a RegID) -> Result<&'a HashSet<Title>, SolveError> {
     let set = reg.get(reg_id);

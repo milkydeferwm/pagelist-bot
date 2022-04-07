@@ -1,12 +1,11 @@
 //! This module performs actions using MediaWiki API
 //! 
 
-#![cfg(feature="mwapi")]
-
-use crate::{NamespaceID, util, error::SolveError};
+use super::{util, error::SolveError};
 use std::collections::{HashSet, VecDeque};
-use mediawiki::{api::Api, title::Title};
-use plbot_base::{bot::APIAssertType, ir::{DepthNum, RedirectFilterStrategy}};
+use mediawiki::{api::{Api, NamespaceID}, title::Title};
+use crate::types::APIAssertType;
+use crate::parser::{ir::{DepthNum, RedirectFilterStrategy}};
 
 fn limit_to_max(limit: i64) -> Option<usize> {
     if limit < 0 {
@@ -131,8 +130,8 @@ pub(crate) async fn get_category_members_one(title: &Title, api: &Api, assert: O
     let mut result_has_ns_category: bool = true;
     let mut result_has_ns_file: bool = true;
     if let Some(ns_list) = ns_clone.as_mut() {
-        result_has_ns_category = ns_list.remove(&plbot_base::NS_CATEGORY);
-        result_has_ns_file = ns_list.remove(&plbot_base::NS_FILE);
+        result_has_ns_category = ns_list.remove(&super::def::NS_CATEGORY);
+        result_has_ns_file = ns_list.remove(&super::def::NS_FILE);
     }
     // Do a bfs search of category tree (perhaps graph).
     // Looks like it is possible to construct a "sub category loop".
@@ -144,7 +143,7 @@ pub(crate) async fn get_category_members_one(title: &Title, api: &Api, assert: O
     let mut visit_cat_queue: VecDeque<(Title, DepthNum)> = VecDeque::new();
     visit_cat_queue.push_back((title.to_owned(), 0));
     while let Some((this_cat, this_depth)) = visit_cat_queue.pop_front() {
-        if this_cat.namespace_id() != plbot_base::NS_CATEGORY {
+        if this_cat.namespace_id() != super::def::NS_CATEGORY {
             return Err(SolveError::NotCategory);
         }
         let cat_name = this_cat.full_pretty(api).unwrap();
@@ -173,12 +172,12 @@ pub(crate) async fn get_category_members_one(title: &Title, api: &Api, assert: O
         }
         if result_has_ns_file {
             cmtype.push("file".to_string());
-            cmnamespace.insert(plbot_base::NS_FILE);
+            cmnamespace.insert(super::def::NS_FILE);
         }
         // If we still need to find subcats, or `result_has_ns_category`...
         if result_has_ns_category || (depth < 0 || this_depth < depth) {
             cmtype.push("subcat".to_string());
-            cmnamespace.insert(plbot_base::NS_CATEGORY);
+            cmnamespace.insert(super::def::NS_CATEGORY);
         }
         if ns_clone.is_some() {
             params.insert("gcmnamespace".to_string(), util::concat_params(&cmnamespace));
@@ -190,7 +189,7 @@ pub(crate) async fn get_category_members_one(title: &Title, api: &Api, assert: O
         let mut title_set_2 = pages_object_to_titles_set(&res["query"], follow_redir, RedirectFilterStrategy::NoRedirect, api);
         if depth < 0 || this_depth < depth {
             // filter out subcategories from title_vec, and add to visit queue
-            for sub in title_set_2.iter().filter(|&t| t.namespace_id() == plbot_base::NS_CATEGORY) {
+            for sub in title_set_2.iter().filter(|&t| t.namespace_id() == super::def::NS_CATEGORY) {
                 if !visited_cats.contains(sub) {
                     visited_cats.insert(sub.to_owned());
                     visit_cat_queue.push_back((sub.to_owned(), this_depth + 1));
@@ -198,7 +197,7 @@ pub(crate) async fn get_category_members_one(title: &Title, api: &Api, assert: O
             }
         }
         if !result_has_ns_category {
-            title_set_2.retain(|f| f.namespace_id() != plbot_base::NS_CATEGORY);
+            title_set_2.retain(|f| f.namespace_id() != super::def::NS_CATEGORY);
         }
         result_set.extend(title_set_2);
     }

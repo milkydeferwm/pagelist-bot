@@ -4,10 +4,10 @@
 
 use std::collections::HashSet;
 
-use plbot_base::ir::{Instruction, SetConstraint, RegID, DepthNum, RedirectFilterStrategy};
-use plbot_base::NamespaceID;
+use super::ir::{Instruction, SetConstraint, RegID, DepthNum, RedirectFilterStrategy};
+use mediawiki::api::NamespaceID;
 
-use crate::{ast::*, error::PLBotParserError};
+use super::{ast::*, error::PLBotParserError};
 
 /// Convert a `Vec` of `Constraint`s into a `SetConstraint`
 /// Merge all `Ns` constraints (using intersection), set all `Limit` constraints to the minimum, and reject any other duplicate-and-confilcting constraints

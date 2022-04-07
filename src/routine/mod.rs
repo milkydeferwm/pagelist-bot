@@ -5,6 +5,6 @@ pub mod daemon;
 pub mod task;
 mod types;
 mod output;
+mod pagewriter;
 
 pub use daemon::task_daemon;
-pub use types::{LoginCredential, SiteProfile};

@@ -1,7 +1,8 @@
 //! This file lists the data structures used in
 //! abstract syntax tree (AST) building.
 
-use plbot_base::{NamespaceID, ir::{DepthNum, RedirectFilterStrategy}};
+use mediawiki::api::NamespaceID;
+use super::ir::{DepthNum, RedirectFilterStrategy};
 
 #[derive(Debug, Clone, Eq, PartialEq)]
 pub(crate) enum Expr {

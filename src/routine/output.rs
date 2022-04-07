@@ -2,7 +2,7 @@ use std::collections::HashMap;
 use mediawiki::title::Title;
 use mediawiki::page::Page;
 use mediawiki::api::Api;
-use plbot_base::bot::APIAssertType;
+use crate::types::APIAssertType;
 use md5::{Md5, Digest};
 
 use super::types::EditPageError;

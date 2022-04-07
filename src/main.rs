@@ -1,24 +1,19 @@
-#![deny(warnings)]
-extern crate mediawiki;
-extern crate clap;
-extern crate tokio;
-extern crate tracing;
-extern crate tracing_subscriber;
-extern crate tracing_appender;
-extern crate serde_json;
-extern crate toolforge;
-extern crate plbot_base;
-extern crate plbot_parser;
-extern crate plbot_solver;
-
 use std::fs;
+use apidelegate::APIDelegate;
 use serde_json::Value;
 use mediawiki::api::Api;
-use tracing::{info_span, info, error, Instrument};
+use tracing::{info_span, info, trace, error, Instrument};
 use tracing_subscriber::{fmt::format::FmtSpan, filter, prelude::*};
 
+mod parser;
+mod solver;
 mod routine;
+
 mod arg;
+mod apidelegate;
+mod types;
+
+static API_DELEGATE: APIDelegate = APIDelegate::new();
 
 /// The main function parses command line arguments, and extracts important information from config files.
 /// Anything related to API is then spawned to `task_daemon`.
@@ -46,26 +41,27 @@ async fn main() {
 
     let (profile, login) = info_span!(target: "bootstrap", "local config").in_scope(|| {
         info!(target: "bootstrap", "reading config files");
-        info!(target: "bootstrap", "reading site information file");
+        trace!(target: "bootstrap", "reading site information file");
         let sites = fs::read_to_string(args.value_of("site").unwrap()).expect("cannot open site information file");
-        info!(target: "bootstrap", "parsing site information file");
+        trace!(target: "bootstrap", "parsing site information file");
         let sites: Value = serde_json::from_str(&sites).expect("cannot parse site information file");
 
         let profile = args.value_of("profile").unwrap();
-        info!(target: "bootstrap", "fetching profile \"{}\"", profile);
-        let profile: routine::SiteProfile = serde_json::from_value(sites[profile].clone()).expect("cannot find specified site profile");
+        trace!(target: "bootstrap", "fetching profile \"{}\"", profile);
+        let profile: types::SiteProfile = serde_json::from_value(sites[profile].clone()).expect("cannot find specified site profile");
 
-        info!(target: "bootstrap", "reading login file");
+        trace!(target: "bootstrap", "reading login file");
         let login = fs::read_to_string(args.value_of("login").unwrap()).expect("cannot open login file");
-        info!(target: "bootstrap", "parsing login file");
+        trace!(target: "bootstrap", "parsing login file");
         let login: Value = serde_json::from_str(&login).expect("cannot parse login file.");
-        info!(target: "bootstrap", "fetching login credential \"{}\"", &profile.login);
-        let login: routine::LoginCredential = serde_json::from_value(login[&profile.login].clone()).expect("cannot find specified site profile");
+        trace!(target: "bootstrap", "fetching login credential \"{}\"", &profile.login);
+        let login: types::LoginCredential = serde_json::from_value(login[&profile.login].clone()).expect("cannot find specified site profile");
 
         info!(target: "bootstrap", "read config files success");
         (profile, login)
     });
 
+    /* 
     // initialize mediawiki api instance
     let mut api = async {
         info!(target: "bootstrap", "creating API object");
@@ -80,13 +76,15 @@ async fn main() {
         info!(target: "bootstrap", "API user agent: {}", api.user_agent());
         info!(target: "bootstrap", "creating API object success");
         api
-    }.instrument(info_span!(target: "bootstrap", "api init")).await;
-
+    }.instrument(info_span!(target: "bootstrap", "api init")).await; */
+    API_DELEGATE.setup(login, profile);
+    API_DELEGATE.start();
+/* 
     async {
         info!(target: "bootstrap", "logging in as user \"{}\"", &login.username);
         api.login(&login.username, &login.password).await.expect("cannot log in");
         info!(target: "bootstrap", "logging in as user \"{}\" success", &login.username);
-    }.instrument(info_span!(target: "bootstrap", "log in")).await;
+    }.instrument(info_span!(target: "bootstrap", "log in")).await; */
 
     async {
         info!(target: "bootstrap", "starting up task daemon");

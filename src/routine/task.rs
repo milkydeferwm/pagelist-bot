@@ -2,11 +2,13 @@ use std::sync::Arc;
 use std::collections::HashSet;
 
 use mediawiki::{api::Api, title::Title, page::{Page, PageError}};
-use plbot_base::{bot::APIAssertType, NamespaceID};
+use crate::types::APIAssertType;
+use mediawiki::api::NamespaceID;
 use tokio::{sync::RwLock, sync::Mutex, time};
 use tracing::{info, warn, error, info_span, Instrument};
 
-use super::types::{TaskStatus, TaskConfig, TaskInfo, OutputFormat};
+use super::types::{TaskStatus, TaskInfo, OutputFormat};
+use crate::types::TaskConfig;
 use super::output;
 
 async fn fetch_text_by_id(id: &str, api: &Api, assert: Option<APIAssertType>) -> Result<String, PageError> {
@@ -221,7 +223,7 @@ pub async fn task_runner(id: String, mut api: Api, write_lock: Arc<Mutex<()>>, a
 pub async fn parse_and_query(expr: &str, api: &Api, assert: Option<APIAssertType>, default_limit: i64) -> Result<HashSet<Title>, String> {
     let query_inst;
     info!(target: "task runner", "parse expression");
-    let query_result = plbot_parser::parse(expr);
+    let query_result = crate::parser::parse(expr);
     if query_result.is_err() {
         warn!(target: "task runner", "parse failure");
         info!(target: "task runner", "error: {}", query_result.unwrap_err());
@@ -230,7 +232,7 @@ pub async fn parse_and_query(expr: &str, api: &Api, assert: Option<APIAssertType
         query_inst = query_result.unwrap();
     }
     info!(target: "task runner", "solve expression");
-    let solve_result = plbot_solver::solve_api(&query_inst, api, assert, default_limit).await;
+    let solve_result = crate::solver::solve_api(&query_inst, api, assert, default_limit).await;
     if solve_result.is_err() {
         warn!(target: "task runner", "solve failure");
         info!(target: "task runner", "error: {}", solve_result.unwrap_err());

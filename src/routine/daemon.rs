@@ -1,7 +1,7 @@
 use std::sync::Arc;
 use std::collections::{HashMap, HashSet};
-use plbot_base::NamespaceID;
-use plbot_base::bot::APIAssertType;
+use mediawiki::api::NamespaceID;
+use crate::types::{APIAssertType, SiteConfig, TaskConfig};
 use serde_json::Map;
 use tokio::sync::{Mutex, RwLock};
 use tokio::task::JoinHandle;

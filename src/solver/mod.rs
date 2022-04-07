@@ -1,26 +1,22 @@
-//!
-//! 
-
-extern crate plbot_base;
 extern crate mediawiki;
 
 mod util;
 mod error;
-#[cfg(feature="mwapi")]
-mod api;
+mod apisolver;
+mod def;
 
-pub use crate::error::SolveError;
-use plbot_base::{ir::RegID, ir::RedirectFilterStrategy, bot::APIAssertType};
+pub use error::SolveError;
+use crate::parser::{ir::RegID, ir::RedirectFilterStrategy};
+use crate::types::APIAssertType;
 use util::{get_set_1, get_set_2};
 
-use plbot_base::{Query, ir::Instruction};
+use crate::parser::{Query, ir::Instruction};
 
 use std::collections::{HashSet, HashMap};
-use mediawiki::{title::Title, api::Api, api::NamespaceID};
+use mediawiki::{title::Title, api::Api};
 
 pub(crate) type Register = HashMap<RegID, HashSet<Title>>;
 
-#[cfg(feature="mwapi")]
 pub async fn solve_api(query: &Query, api: &Api, assert: Option<APIAssertType>, default_limit: i64) -> Result<HashSet<Title>, SolveError> {
     // prepare a mock register pool using HashMap
     let mut reg: Register = HashMap::new();
@@ -55,7 +51,7 @@ pub async fn solve_api(query: &Query, api: &Api, assert: Option<APIAssertType>, 
                 } else {
                     let mut result_set: HashSet<Title> = HashSet::new();
                     for t in set.iter() {
-                        let res_one = api::get_links_one(t, api, assert, cs.ns.as_ref(), cs.resolveredir.unwrap_or(false), cs.limit.unwrap_or(default_limit)).await?;
+                        let res_one = apisolver::get_links_one(t, api, assert, cs.ns.as_ref(), cs.resolveredir.unwrap_or(false), cs.limit.unwrap_or(default_limit)).await?;
                         result_set.extend(res_one);
                     }
                     reg.insert(*dest, result_set);
@@ -70,7 +66,7 @@ pub async fn solve_api(query: &Query, api: &Api, assert: Option<APIAssertType>, 
                 } else {
                     let mut result_set: HashSet<Title> = HashSet::new();
                     for t in set.iter() {
-                        let res_one = api::get_backlinks_one(t, api, assert, cs.ns.as_ref(), !cs.directlink.unwrap_or(false), cs.redir.unwrap_or(RedirectFilterStrategy::All), cs.resolveredir.unwrap_or(false), cs.limit.unwrap_or(default_limit)).await?;
+                        let res_one = apisolver::get_backlinks_one(t, api, assert, cs.ns.as_ref(), !cs.directlink.unwrap_or(false), cs.redir.unwrap_or(RedirectFilterStrategy::All), cs.resolveredir.unwrap_or(false), cs.limit.unwrap_or(default_limit)).await?;
                         result_set.extend(res_one);
                     }
                     reg.insert(*dest, result_set);
@@ -85,7 +81,7 @@ pub async fn solve_api(query: &Query, api: &Api, assert: Option<APIAssertType>, 
                 } else {
                     let mut result_set: HashSet<Title> = HashSet::new();
                     for t in set.iter() {
-                        let res_one = api::get_embed_one(t, api, assert, cs.ns.as_ref(), cs.redir.unwrap_or(RedirectFilterStrategy::All), cs.resolveredir.unwrap_or(false), cs.limit.unwrap_or(default_limit)).await?;
+                        let res_one = apisolver::get_embed_one(t, api, assert, cs.ns.as_ref(), cs.redir.unwrap_or(RedirectFilterStrategy::All), cs.resolveredir.unwrap_or(false), cs.limit.unwrap_or(default_limit)).await?;
                         result_set.extend(res_one);
                     }
                     reg.insert(*dest, result_set);
@@ -101,7 +97,7 @@ pub async fn solve_api(query: &Query, api: &Api, assert: Option<APIAssertType>, 
                     let sub_limit = cs.depth.unwrap_or(0);
                     let mut result_set: HashSet<Title> = HashSet::new();
                     for t in set.iter() {
-                        let res_one = api::get_category_members_one(t, api, assert, cs.ns.as_ref(), sub_limit, cs.resolveredir.unwrap_or(false), cs.limit.unwrap_or(default_limit)).await?;
+                        let res_one = apisolver::get_category_members_one(t, api, assert, cs.ns.as_ref(), sub_limit, cs.resolveredir.unwrap_or(false), cs.limit.unwrap_or(default_limit)).await?;
                         result_set.extend(res_one);
                     }
                     reg.insert(*dest, result_set);
@@ -121,7 +117,7 @@ pub async fn solve_api(query: &Query, api: &Api, assert: Option<APIAssertType>, 
                 } else {
                     let mut result_set: HashSet<Title> = HashSet::new();
                     for t in set.iter() {
-                        let res_one = api::get_prefix_index_one(t, api, assert, cs.ns.as_ref(), cs.redir.unwrap_or(RedirectFilterStrategy::All), cs.limit.unwrap_or(default_limit)).await?;
+                        let res_one = apisolver::get_prefix_index_one(t, api, assert, cs.ns.as_ref(), cs.redir.unwrap_or(RedirectFilterStrategy::All), cs.limit.unwrap_or(default_limit)).await?;
                         result_set.extend(res_one);
                     }
                     reg.insert(*dest, result_set);

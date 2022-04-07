@@ -9,18 +9,20 @@ edition = "2021"
 # strip = true
 
 [dependencies]
-plbot_base = { path = "base" }
-plbot_parser = { path = "parser" }
-plbot_solver = { path = "solver" }
-
+clap = { version = "^3.1", features = [ "cargo" ] }
+hex = "^0.4"
+lalrpop-util = { version = "^0.19", features = [ "lexer" ] }
+md-5 = "^0.10"
 mediawiki = "^0.2"
+regex = "1"
+serde = { version = "^1.0", features = [ "derive" ] }
+serde_json = { version = "^1.0" }
 tokio = { version = "^1.15", features = [ "time" ] }
+toolforge = "^5.1"
 tracing = { version = "^0.1" }
 tracing-subscriber = { version = "^0.3", features = [ "local-time", "registry" ] }
 tracing-appender = "^0.2"
-clap = { version = "^3.1", features = [ "cargo" ] }
-serde_json = { version = "^1.0" }
-md-5 = "^0.10"
-hex = "^0.4"
-serde = { version = "^1.0", features = [ "derive" ] }
-toolforge = "^5.1"
+unescape = "^0.1"
+
+[build-dependencies]
+lalrpop = "^0.19"

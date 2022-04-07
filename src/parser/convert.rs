@@ -4,8 +4,8 @@
 
 use std::collections::HashSet;
 
-use crate::{ast::Expr, ast::UnaryOpcode, ast::BinaryOpcode, PLBotParseResult, optim::merge_constraints, optim::construct_constraints_from_vec, error::PLBotParserError};
-use plbot_base::ir::{Instruction, SetConstraint, RegID, RedirectFilterStrategy};
+use super::{ast::Expr, ast::UnaryOpcode, ast::BinaryOpcode, PLBotParseResult, optim::merge_constraints, optim::construct_constraints_from_vec, error::PLBotParserError};
+use super::ir::{Instruction, SetConstraint, RegID, RedirectFilterStrategy};
 
 pub(crate) fn to_ir(ast: &Expr) -> PLBotParseResult {
     ir_helper(ast, 0)

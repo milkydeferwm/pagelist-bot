@@ -1,45 +1,3 @@
-use plbot_base::NamespaceID;
-
-#[derive(PartialEq, Eq, Clone, Debug, serde::Deserialize)]
-pub struct LoginCredential {
-    pub username: String,
-    pub password: String,
-}
-
-#[derive(PartialEq, Eq, Clone, Debug, serde::Deserialize)]
-pub struct SiteProfile {
-    pub api: String,
-    pub db: Option<String>,
-    pub login: String,
-    pub assert: Option<plbot_base::bot::APIAssertType>,
-    pub config: String,
-}
-
-#[derive(PartialEq, Eq, Clone, Debug, serde::Deserialize)]
-pub struct SiteConfig {
-    pub activate: bool,
-    pub taskdir: String,
-    pub interval: u64,
-    pub resultheader: String,
-    pub denyns: Vec<NamespaceID>,
-    pub default: TaskConfig,
-}
-
-#[derive(PartialEq, Eq, Clone, Debug, serde::Deserialize)]
-pub struct TaskConfig {
-    pub timeout: u64,
-    pub querylimit: i64,
-}
-
-impl TaskConfig {
-    pub fn new() -> Self {
-        TaskConfig {
-            timeout: 0,
-            querylimit: 0,
-        }
-    }
-}
-
 #[derive(PartialEq, Eq, Clone, Debug, serde::Deserialize)]
 pub struct TaskInfo {
     pub activate: bool,
@@ -52,12 +10,19 @@ pub struct TaskInfo {
 }
 
 #[derive(PartialEq, Eq, Clone, Debug, serde::Deserialize)]
-pub struct OutputFormat {
-    pub target: String,
+pub struct OutputFormatSuccess {
     pub before: String,
     pub item: String,
     pub between: String,
     pub after: String,
+}
+
+#[derive(PartialEq, Eq, Clone, Debug, serde::Deserialize)]
+pub struct OutputFormat {
+    pub target: String,
+    pub failure: String,
+    pub empty: String,
+    pub success: OutputFormatSuccess,
 }
 
 #[derive(PartialEq, Eq, Clone, Copy, Debug)]

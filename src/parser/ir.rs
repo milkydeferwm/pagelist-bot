@@ -7,7 +7,9 @@
 //! 
 //! Just like the intermediate representation (IR) in a compiler.
 
-use crate::NamespaceID;
+#![allow(dead_code)]
+
+use mediawiki::api::NamespaceID;
 use std::collections::HashSet;
 
 pub type RegID = u64;

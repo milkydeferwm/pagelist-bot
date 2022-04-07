@@ -1,5 +1,5 @@
-use crate::ast::{Expr, UnaryOpcode, BinaryOpcode, Constraint};
-use plbot_base::ir::RedirectFilterStrategy;
+use super::ast::{Expr, UnaryOpcode, BinaryOpcode, Constraint};
+use super::ir::RedirectFilterStrategy;
 use std::str::FromStr;
 use unescape::unescape;
 
