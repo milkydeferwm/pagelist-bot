@@ -58,9 +58,15 @@ impl APIService {
         }
     }
 
-    pub fn setup(&self, login: LoginCredential, profile: SiteProfile) {
-        *self.login.blocking_lock() = Some(login);
-        *self.profile.blocking_lock() = Some(profile);
+    pub async fn setup(&self, login: LoginCredential, profile: SiteProfile) {
+        {
+            let mut login_lock = self.login.lock().await;
+            *login_lock = Some(login);
+        }
+        {
+            let mut profile_lock = self.profile.lock().await;
+            *profile_lock = Some(profile);
+        }
     }
 
     /// Send a request via GET
@@ -68,7 +74,7 @@ impl APIService {
         let api = self.api.read().await;
         if let Some(api) = &*api {
             let mut params = params.clone();
-            self.param_decorate(&mut params);
+            self.param_decorate(&mut params).await;
             let resp = api.get_query_api_json(&params).await?;
             if let Some(errobj) = resp.get("error") {
                 Err(APIServiceError::Server(errobj.clone()))
@@ -85,7 +91,7 @@ impl APIService {
         let api = self.api.read().await;
         if let Some(api) = &*api {
             let mut params = params.clone();
-            self.param_decorate(&mut params);
+            self.param_decorate(&mut params).await;
             let resp = api.get_query_api_json_limit(&params, max).await?;
             if let Some(errobj) = resp.get("error") {
                 Err(APIServiceError::Server(errobj.clone()))
@@ -107,7 +113,7 @@ impl APIService {
         let api = self.api.read().await;
         if let Some(api) = &*api {
             let mut params = params.to_owned();
-            self.param_decorate(&mut params);
+            self.param_decorate(&mut params).await;
             let resp = api.post_query_api_json(&params).await?;
             if let Some(errobj) = resp.get("error") {
                 Err(APIServiceError::Server(errobj.clone()))
@@ -129,8 +135,8 @@ impl APIService {
     }
 
     /// Get csrf token
-    pub fn csrf(&self) -> String {
-        let self_csrf = self.csrf.blocking_read();
+    pub async fn csrf(&self) -> String {
+        let self_csrf = self.csrf.read().await;
         (*self_csrf).clone()
     }
 
@@ -139,8 +145,8 @@ impl APIService {
     }
 
     /// Convert Title object to full pretty title
-    pub fn full_pretty(&self, title: &Title) -> Result<Option<String>, APIServiceError> {
-        let api = self.api.blocking_read();
+    pub async fn full_pretty(&self, title: &Title) -> Result<Option<String>, APIServiceError> {
+        let api = self.api.read().await;
         if let Some(api) = &*api {
             Ok(title.full_pretty(api))
         } else {
@@ -149,8 +155,8 @@ impl APIService {
     }
 
     /// Convert Title object to namespace name
-    pub fn namespace_name<'a>(&self, title: &Title) -> Result<Option<String>, APIServiceError> {
-        let api = self.api.blocking_read();
+    pub async fn namespace_name<'a>(&self, title: &Title) -> Result<Option<String>, APIServiceError> {
+        let api = self.api.read().await;
         if let Some(api) = &*api {
             let name = title.namespace_name(api);
             if let Some(name) = name {
@@ -164,8 +170,8 @@ impl APIService {
     }
 
     /// Create a title from full name
-    pub fn title_new_from_full(&self, title: &str) -> Result<Title, APIServiceError> {
-        let api = self.api.blocking_read();
+    pub async fn title_new_from_full(&self, title: &str) -> Result<Title, APIServiceError> {
+        let api = self.api.read().await;
         if let Some(api) = &*api {
             Ok(Title::new_from_full(title, api))
         } else {
@@ -173,7 +179,7 @@ impl APIService {
         }
     }
 
-    fn param_decorate(&self, params: &mut HashMap<String, String>) {
+    async fn param_decorate(&self, params: &mut HashMap<String, String>) {
         // Add a format to params, if it does not exist
         if !params.contains_key("format") {
             params.insert("format".to_string(), "json".to_string());
@@ -188,7 +194,7 @@ impl APIService {
         }
         // Add an assert to params, if it does not exist
         let user_assert = {
-            let lock = self.profile.blocking_lock();
+            let lock = self.profile.lock().await;
             lock.as_ref().unwrap().assert
         };
         if !params.contains_key("assert") && user_assert.is_some() {
@@ -199,7 +205,7 @@ impl APIService {
             // extract the part before @
             // notice that @ is in reserved username character list, so that there is no ordinary username that contains @
             let user_username = {
-                let lock = self.login.blocking_lock();
+                let lock = self.login.lock().await;
                 lock.as_ref().unwrap().username.clone()
             };
             params.insert("assertuser".to_string(), user_username.split('@').next().unwrap().to_string());
@@ -207,8 +213,8 @@ impl APIService {
     }
 
     /// Starts the daemon process. This should only be called once
-    pub fn start(&'static self) {
-        self.stop();
+    pub async fn start(&'static self) {
+        _ = tokio::task::spawn_blocking(|| self.stop()).await;
         let handle = tokio::spawn(async {
             // API status checker runs every hour
             let mut interval = tokio::time::interval(tokio::time::Duration::from_secs(60 * 60));
@@ -273,7 +279,7 @@ impl APIService {
                 }
             }
         });
-        let mut keepalivehandle = self.keepalivehandle.blocking_lock();
+        let mut keepalivehandle = self.keepalivehandle.lock().await;
         *keepalivehandle = Some(handle);
     }
 

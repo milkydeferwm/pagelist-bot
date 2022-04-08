@@ -1,5 +1,6 @@
 use std::collections::HashSet;
 
+use futures::future::join_all;
 use md5::{Md5, Digest};
 use mediawiki::{hashmap, api::NamespaceID, title::Title};
 use tokio::sync::Mutex;
@@ -93,7 +94,7 @@ impl<'a> PageWriter<'a> {
         output
     }
     
-    fn substitute_str_template_with_title(&self, template: &str, t: &Title, current_num: usize, total_num: usize) -> String {
+    async fn substitute_str_template_with_title(&self, template: &str, t: &Title, current_num: usize, total_num: usize) -> String {
         let mut output: String = String::new();
         let mut escape: bool = false;
         for char in template.chars() {
@@ -101,8 +102,8 @@ impl<'a> PageWriter<'a> {
                 // only accept $0 (full name), $1 (namespace), $2 (name), $@ (current index), $+ (total size), $$ ($)
                 match char {
                     '$' => { output.push('$'); },
-                    '0' => { output.push_str(&API_SERVICE.full_pretty(t).unwrap_or_else(|_| Some("".to_string())).unwrap_or("".to_string())); },
-                    '1' => { output.push_str(&API_SERVICE.namespace_name(t).unwrap_or(Some("".to_string())).unwrap_or("".to_string())); },
+                    '0' => { output.push_str(&API_SERVICE.full_pretty(t).await.unwrap_or_else(|_| Some("".to_string())).unwrap_or("".to_string())); },
+                    '1' => { output.push_str(&API_SERVICE.namespace_name(t).await.unwrap_or(Some("".to_string())).unwrap_or("".to_string())); },
                     '2' => { output.push_str(t.pretty()); },
                     '@' => { output.push_str(&current_num.to_string()) },
                     '+' => { output.push_str(&total_num.to_string()) },
@@ -166,7 +167,9 @@ impl<'a> PageWriter<'a> {
                                 let list_size = ls.len();
                                 let mut output: String = String::new();
                                 output.push_str(&self.substitute_str_template(&outputformat.success.before, list_size));
-                                let item_str: String = ls.iter().enumerate().map(|(idx, t)| self.substitute_str_template_with_title(&outputformat.success.item, t, idx + 1, list_size)).collect::<Vec<String>>().join(&self.substitute_str_template(&outputformat.success.between, list_size));
+                                let item_str: String = join_all(ls.iter().enumerate().map(|(idx, t)| async move {
+                                    self.substitute_str_template_with_title(&outputformat.success.item, t, idx + 1, list_size).await
+                                })).await.join(&self.substitute_str_template(&outputformat.success.between, list_size));
                                 output.push_str(&item_str);
                                 output.push_str(&self.substitute_str_template(&outputformat.success.after, list_size));
                                 output
@@ -183,7 +186,7 @@ impl<'a> PageWriter<'a> {
                         "summary".to_string() => summary,
                         "md5".to_string() => md5,
                         "nocreate".to_string() => "1".to_string(),
-                        "token".to_string() => API_SERVICE.csrf()
+                        "token".to_string() => API_SERVICE.csrf().await
                     ];
                     let edit_result = {
                         API_SERVICE.get_lock().lock().await;

@@ -70,11 +70,11 @@ async fn main() {
         static ref TASK_FINDER: TaskFinder = TaskFinder::new();
     }
 
-    API_SERVICE.setup(login, profile);
-    API_SERVICE.start();
+    API_SERVICE.setup(login, profile).await;
+    API_SERVICE.start().await;
 
-    TASK_FINDER.set_config_location(&config_loc);
-    TASK_FINDER.start();
+    TASK_FINDER.set_config_location(&config_loc).await;
+    TASK_FINDER.start().await;
 
     let ctrl_c_res = tokio::signal::ctrl_c().await;
     match ctrl_c_res {

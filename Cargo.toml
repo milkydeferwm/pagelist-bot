@@ -12,6 +12,7 @@ edition = "2021"
 chrono = "^0.4"
 clap = { version = "^3.1", features = [ "cargo" ] }
 cron = "^0.10"
+futures = "^0.3"
 hex = "^0.4"
 lalrpop-util = { version = "^0.19", features = [ "lexer" ] }
 lazy_static = "^1.4"

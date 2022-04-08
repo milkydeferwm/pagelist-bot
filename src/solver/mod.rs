@@ -125,7 +125,7 @@ pub async fn solve_api(query: &Query, default_limit: i64) -> Result<HashSet<Titl
             Instruction::Set { dest, titles, cs } => {
                 let mut title_set: HashSet<Title> = HashSet::new();
                 for t in titles {
-                    let title: Title = API_SERVICE.title_new_from_full(t)?;
+                    let title: Title = API_SERVICE.title_new_from_full(t).await?;
                     if let Some(nss) = &cs.ns {
                         if !nss.contains(&title.namespace_id()) {
                             continue;

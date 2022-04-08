@@ -37,13 +37,13 @@ impl TaskFinder {
         }
     }
 
-    pub fn set_config_location(&self, config_location: &str) {
-        let mut self_config_loc = self.on_site_config_location.blocking_lock();
+    pub async fn set_config_location(&self, config_location: &str) {
+        let mut self_config_loc = self.on_site_config_location.lock().await;
         *self_config_loc = config_location.to_owned();
     }
 
-    pub fn start(&'static self) {
-        self.stop();
+    pub async fn start(&'static self) {
+        _ = tokio::task::spawn_blocking(|| self.stop()).await;
         let handle = tokio::spawn(async {
             loop {
                 // fetch on-site config
@@ -104,7 +104,7 @@ impl TaskFinder {
                     }
                     // fetch tasks
                     // so long as we can get site config, there is always an `Api` present in the service
-                    let taskdir_title = API_SERVICE.title_new_from_full(&config.taskdir).unwrap(); 
+                    let taskdir_title = API_SERVICE.title_new_from_full(&config.taskdir).await.unwrap(); 
                     let params = hashmap![
                         "action".to_string() => "query".to_string(),
                         "prop".to_string() => "info".to_string(),
@@ -161,7 +161,7 @@ impl TaskFinder {
                 tokio::time::sleep(tokio::time::Duration::from_secs(10 * 60)).await;
             }
         });
-        let mut finderhandle = self.finderhandle.blocking_lock();
+        let mut finderhandle = self.finderhandle.lock().await;
         *finderhandle = Some(handle);
     }
 
