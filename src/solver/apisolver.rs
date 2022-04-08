@@ -3,9 +3,9 @@
 
 use super::{util, error::SolveError};
 use std::collections::{HashSet, VecDeque};
-use mediawiki::{api::{Api, NamespaceID}, title::Title};
-use crate::types::APIAssertType;
-use crate::parser::{ir::{DepthNum, RedirectFilterStrategy}};
+use mediawiki::{api::NamespaceID, title::Title, hashmap};
+use crate::API_SERVICE;
+use crate::parser::ir::{DepthNum, RedirectFilterStrategy};
 
 fn limit_to_max(limit: i64) -> Option<usize> {
     if limit < 0 {
@@ -15,17 +15,17 @@ fn limit_to_max(limit: i64) -> Option<usize> {
     }
 }
 
-fn pages_object_to_titles_set(data: &serde_json::Value, redirected: bool, redirect_filter: RedirectFilterStrategy, api: &Api) -> HashSet<Title> {
+fn pages_object_to_titles_set(data: &serde_json::Value, redirected: bool, redirect_filter: RedirectFilterStrategy) -> HashSet<Title> {
     if let Some(obj) = data.as_object() {
         let mut redirects: HashSet<Title> = HashSet::new();
         if let Some(redirs) = obj.get("redirects") {
             for itm in redirs.as_array().unwrap().iter() {
-                redirects.insert(Title::new_from_full(itm["from"].as_str().unwrap(), api));
+                redirects.insert(API_SERVICE.title_new_from_full(itm["from"].as_str().unwrap()).unwrap());
             }
         }
         let mut pages: HashSet<Title> = HashSet::new();
         if let Some(pgs) = obj.get("pages") {
-            for (_pageid, pageobj) in pgs.as_object().unwrap().iter() {
+            for pageobj in pgs.as_array().unwrap() {
                 pages.insert(Title::new_from_api_result(pageobj));
             }
         }
@@ -65,22 +65,20 @@ fn pages_object_to_titles_set(data: &serde_json::Value, redirected: bool, redire
 /// `limit`: Query limit.
 #[allow(clippy::too_many_arguments)]
 pub(crate) async fn get_backlinks_one(title: &Title, ns: Option<&HashSet<NamespaceID>>, level_2: bool, redirect_strat: RedirectFilterStrategy, follow_redir: bool, limit: i64) -> Result<HashSet<Title>, SolveError> {
-    let elem_name = title.full_pretty(api);
+    let elem_name = API_SERVICE.full_pretty(title)?;
     if elem_name.is_none() {
         Ok(HashSet::new())
     } else {
-        let mut params = api.params_into(&[
-            ("utf8", "1"),
-            ("action", "query"),
-            ("generator", "backlinks"),
-            ("gbltitle", &elem_name.unwrap()),
-            ("gbllimit", "max"),
-            ("gblfilterredir", redirect_strat.to_string().as_str()),
-        ]);
+        let mut params = hashmap![
+            "action".to_string() => "query".to_string(),
+            "generator".to_string() => "backlinks".to_string(),
+            "gbltitle".to_string() => elem_name.unwrap(),
+            "gbllimit".to_string() => "max".to_string(),
+            "gblfilterredir".to_string() => redirect_strat.to_string()
+        ];
         if follow_redir {
             params.insert("redirects".to_string(), "1".to_string());
         }
-        util::insert_assert_param(&mut params, assert);
         if level_2 {
             // If level_2 is `true`, we cannot filter namespaces in the query. Here is the reason.
             // Suppose we have an inter-namespace redirect, for example,
@@ -95,9 +93,8 @@ pub(crate) async fn get_backlinks_one(title: &Title, ns: Option<&HashSet<Namespa
                 params.insert("gblnamespace".to_string(), util::concat_params(ns_list));
             }
         }
-        let res = api.get_query_api_json_limit(&params, limit_to_max(limit)).await?;
-        util::detect_api_failure(&res)?;
-        let mut title_set = pages_object_to_titles_set(&res["query"], follow_redir, redirect_strat, api);
+        let res = API_SERVICE.get_limit(&params, limit_to_max(limit)).await?;
+        let mut title_set = pages_object_to_titles_set(&res["query"], follow_redir, redirect_strat);
         // Need to filter by namespace...
         if level_2 {
             if let Some(ns_list) = ns {
@@ -146,18 +143,16 @@ pub(crate) async fn get_category_members_one(title: &Title, ns: Option<&HashSet<
         if this_cat.namespace_id() != super::def::NS_CATEGORY {
             return Err(SolveError::NotCategory);
         }
-        let cat_name = this_cat.full_pretty(api).unwrap();
-        let mut params = api.params_into(&[
-            ("utf8", "1"),
-            ("action", "query"),
-            ("generator", "categorymembers"),
-            ("gcmtitle", &cat_name),
-            ("gcmlimit", "max"),
-        ]);
+        let cat_name = API_SERVICE.full_pretty(&this_cat)?.unwrap();
+        let mut params = hashmap![
+            "action".to_string() => "query".to_string(),
+            "generator".to_string() => "categorymembers".to_string(),
+            "gcmtitle".to_string() => cat_name,
+            "gcmlimit".to_string() => "max".to_string()
+        ];
         if follow_redir {
             params.insert("redirects".to_string(), "1".to_string());
         }
-        util::insert_assert_param(&mut params, assert);
         // determine what cmtype and cmnamespace should we insert
         let mut cmtype: Vec<String> = Vec::new();
         let mut cmnamespace: HashSet<NamespaceID> = HashSet::new();
@@ -184,9 +179,8 @@ pub(crate) async fn get_category_members_one(title: &Title, ns: Option<&HashSet<
         }
         params.insert("gcmtype".to_string(), cmtype.join("|"));
         // fetch results
-        let res = api.get_query_api_json_limit(&params, limit_to_max(limit)).await?;
-        util::detect_api_failure(&res)?;
-        let mut title_set_2 = pages_object_to_titles_set(&res["query"], follow_redir, RedirectFilterStrategy::NoRedirect, api);
+        let res = API_SERVICE.get_limit(&params, limit_to_max(limit)).await?;
+        let mut title_set_2 = pages_object_to_titles_set(&res["query"], follow_redir, RedirectFilterStrategy::NoRedirect);
         if depth < 0 || this_depth < depth {
             // filter out subcategories from title_vec, and add to visit queue
             for sub in title_set_2.iter().filter(|&t| t.namespace_id() == super::def::NS_CATEGORY) {
@@ -230,19 +224,16 @@ pub(crate) async fn get_prefix_index_one(title: &Title, ns: Option<&HashSet<Name
             return Ok(HashSet::new());
         }
     }
-    let mut params = api.params_into(&[
-        ("utf8", "1"),
-        ("action", "query"),
-        ("generator", "allpages"),
-        ("gapprefix", title.pretty()),
-        ("gapnamespace", NamespaceID::to_string(&title_ns_id).as_str()),
-        ("gaplimit", "max"),
-        ("gapfilterredir", redirect_strat.to_string().as_str()),
-    ]);
-    util::insert_assert_param(&mut params, assert);
-    let res = api.get_query_api_json_limit(&params, limit_to_max(limit)).await?;
-    util::detect_api_failure(&res)?;
-    let title_set = pages_object_to_titles_set(&res["query"], false, redirect_strat, api);
+    let params = hashmap![
+        "action".to_string() => "query".to_string(),
+        "generator".to_string() => "allpages".to_string(),
+        "gapprefix".to_string() => title.pretty().to_string(),
+        "gapnamespace".to_string() => title_ns_id.to_string(),
+        "gaplimit".to_string() => "max".to_string(),
+        "gapfilterredir".to_string() => redirect_strat.to_string()
+    ];
+    let res = API_SERVICE.get_limit(&params, limit_to_max(limit)).await?;
+    let title_set = pages_object_to_titles_set(&res["query"], false, redirect_strat);
     Ok(title_set)
 }
 
@@ -264,28 +255,25 @@ pub(crate) async fn get_prefix_index_one(title: &Title, ns: Option<&HashSet<Name
 /// 
 /// `limit`: Query limit.
 pub(crate) async fn get_embed_one(title: &Title, ns: Option<&HashSet<NamespaceID>>, redirect_strat: RedirectFilterStrategy, follow_redir: bool, limit: i64) -> Result<HashSet<Title>, SolveError> {
-    let elem_name = title.full_pretty(api);
+    let elem_name = API_SERVICE.full_pretty(title)?;
     if elem_name.is_none() {
         Ok(HashSet::new())
     } else {
-        let mut params = api.params_into(&[
-            ("utf8", "1"),
-            ("action", "query"),
-            ("generator", "embeddedin"),
-            ("geititle", &elem_name.unwrap()),
-            ("geilimit", "max"),
-            ("geifilterredir", redirect_strat.to_string().as_str()),
-        ]);
+        let mut params = hashmap![
+            "action".to_string() => "query".to_string(),
+            "generator".to_string() => "embeddedin".to_string(),
+            "geititle".to_string() => elem_name.unwrap(),
+            "geilimit".to_string() => "max".to_string(),
+            "geifilterredir".to_string() => redirect_strat.to_string()
+        ];
         if let Some(ns_list) = ns {
             params.insert("geinamespace".to_string(), util::concat_params(ns_list));
         }
         if follow_redir {
             params.insert("redirects".to_string(), "1".to_string());
         }
-        util::insert_assert_param(&mut params, assert);
-        let res = api.get_query_api_json_limit(&params, limit_to_max(limit)).await?;
-        util::detect_api_failure(&res)?;
-        let title_set = pages_object_to_titles_set(&res["query"], follow_redir, redirect_strat, api);
+        let res = API_SERVICE.get_limit(&params, limit_to_max(limit)).await?;
+        let title_set = pages_object_to_titles_set(&res["query"], follow_redir, redirect_strat);
         Ok(title_set)
     }
 }
@@ -304,27 +292,24 @@ pub(crate) async fn get_embed_one(title: &Title, ns: Option<&HashSet<NamespaceID
 /// 
 /// `limit`: Query limit
 pub(crate) async fn get_links_one(title: &Title, ns: Option<&HashSet<NamespaceID>>, follow_redir: bool, limit: i64) -> Result<HashSet<Title>, SolveError> {
-    let elem_name = title.full_pretty(api);
+    let elem_name = API_SERVICE.full_pretty(title)?;
     if elem_name.is_none() {
         Ok(HashSet::new())
     } else {
-        let mut params = api.params_into(&[
-            ("utf8", "1"),
-            ("action", "query"),
-            ("generator", "links"),
-            ("titles", &elem_name.unwrap()),
-            ("gpllimit", "max"),
-        ]);
+        let mut params = hashmap![
+            "action".to_string() => "query".to_string(),
+            "generator".to_string() => "links".to_string(),
+            "titles".to_string() => elem_name.unwrap(),
+            "gpllimit".to_string() => "max".to_string()
+        ];
         if let Some(ns_list) = ns {
             params.insert("gplnamespace".to_string(), util::concat_params(ns_list));
         }
         if follow_redir {
             params.insert("redirects".to_string(), "1".to_string());
         }
-        util::insert_assert_param(&mut params, assert);
-        let res = api.get_query_api_json_limit(&params, limit_to_max(limit)).await?;
-        util::detect_api_failure(&res)?;
-        let title_vec = pages_object_to_titles_set(&res["query"], follow_redir, RedirectFilterStrategy::NoRedirect, api);
+        let res = API_SERVICE.get_limit(&params, limit_to_max(limit)).await?;
+        let title_vec = pages_object_to_titles_set(&res["query"], follow_redir, RedirectFilterStrategy::NoRedirect);
         let title_set = HashSet::from_iter(title_vec.into_iter());
         Ok(title_set)
     }
