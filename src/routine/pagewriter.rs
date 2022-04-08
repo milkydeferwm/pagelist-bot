@@ -148,7 +148,9 @@ impl<'a> PageWriter<'a> {
             } else {
                 event!(Level::INFO, target = outputformat.target.as_str(), "checking prop");
                 let res = page_query.unwrap();
+                event!(Level::INFO, target = outputformat.target.as_str(), res = ?res);
                 let info = res["query"]["pages"].as_array().unwrap()[0].as_object().unwrap();
+                event!(Level::INFO, target = outputformat.target.as_str(), info = ?info);
                 if info.get("missing").is_some() {
                     event!(Level::INFO, target = outputformat.target.as_str(), "target page does not exist, skip");
                 } else if info.get("redirect").is_some() {
