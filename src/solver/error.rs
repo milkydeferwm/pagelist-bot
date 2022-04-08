@@ -1,10 +1,12 @@
 use std::error::Error;
 use std::fmt;
 
+use crate::apiservice::APIServiceError;
+
 #[derive(Debug)]
 pub enum SolveError {
     MediaWiki(mediawiki::media_wiki_error::MediaWikiError),
-    APIAccessFail(String, String),
+    APIService(APIServiceError),
     QueryForMultiplePages,
     UnknownIntermediateValue,
     NotCategory,
@@ -18,7 +20,7 @@ impl fmt::Display for SolveError {
         match self {
             Self::MediaWiki(e) => e.fmt(f),
             Self::QueryForMultiplePages => f.write_str("cannot query for multiple pages"),
-            Self::APIAccessFail(code, info) => f.write_fmt(format_args!("MediaWiki API returns error code: \"{}\", more info: \"{}\"", code, info)),
+            Self::APIService(e) => f.write_fmt(format_args!("API Service fails with error: \"{}\"", e)),
             Self::UnknownIntermediateValue => f.write_str("cannot access an intermediate value before it is initialized"),
             Self::NotCategory => f.write_str("cannot query for members of something not a category"),
         }
@@ -31,8 +33,8 @@ impl From<mediawiki::media_wiki_error::MediaWikiError> for SolveError {
     }
 }
 
-impl From<(String, String)> for SolveError {
-    fn from(e: (String, String)) -> Self {
-        Self::APIAccessFail(e.0, e.1)
+impl From<APIServiceError> for SolveError {
+    fn from(e: APIServiceError) -> Self {
+        Self::APIService(e)
     }
 }

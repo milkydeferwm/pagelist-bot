@@ -23,6 +23,16 @@ impl From<MediaWikiError> for APIServiceError {
     }
 }
 
+impl core::fmt::Display for APIServiceError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::NoAPI => f.write_str("no API object present in the service"),
+            Self::Client(e) => e.fmt(f),
+            Self::Server(e) => e.fmt(f),
+        }
+    }
+}
+
 pub struct APIService {
     login: Option<LoginCredential>,
     profile: Option<SiteProfile>,

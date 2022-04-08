@@ -64,7 +64,7 @@ fn pages_object_to_titles_set(data: &serde_json::Value, redirected: bool, redire
 /// 
 /// `limit`: Query limit.
 #[allow(clippy::too_many_arguments)]
-pub(crate) async fn get_backlinks_one(title: &Title, api: &Api, assert: Option<APIAssertType>, ns: Option<&HashSet<NamespaceID>>, level_2: bool, redirect_strat: RedirectFilterStrategy, follow_redir: bool, limit: i64) -> Result<HashSet<Title>, SolveError> {
+pub(crate) async fn get_backlinks_one(title: &Title, ns: Option<&HashSet<NamespaceID>>, level_2: bool, redirect_strat: RedirectFilterStrategy, follow_redir: bool, limit: i64) -> Result<HashSet<Title>, SolveError> {
     let elem_name = title.full_pretty(api);
     if elem_name.is_none() {
         Ok(HashSet::new())
@@ -124,7 +124,7 @@ pub(crate) async fn get_backlinks_one(title: &Title, api: &Api, assert: Option<A
 /// `follow_redir`: Whether should follow redirects.
 /// 
 /// `limit`: Query limit.
-pub(crate) async fn get_category_members_one(title: &Title, api: &Api, assert: Option<APIAssertType>, ns: Option<&HashSet<NamespaceID>>, depth: DepthNum, follow_redir: bool, limit: i64) -> Result<HashSet<Title>, SolveError> {
+pub(crate) async fn get_category_members_one(title: &Title, ns: Option<&HashSet<NamespaceID>>, depth: DepthNum, follow_redir: bool, limit: i64) -> Result<HashSet<Title>, SolveError> {
     // Due to miser mode, we need to do some preparations to cs.
     let mut ns_clone = ns.cloned();
     let mut result_has_ns_category: bool = true;
@@ -223,7 +223,7 @@ pub(crate) async fn get_category_members_one(title: &Title, api: &Api, assert: O
 /// `redirect_strat`: The redirect strategy to use when querying.
 /// 
 /// `limit`: Query limit.
-pub(crate) async fn get_prefix_index_one(title: &Title, api: &Api, assert: Option<APIAssertType>, ns: Option<&HashSet<NamespaceID>>, redirect_strat: RedirectFilterStrategy, limit: i64) -> Result<HashSet<Title>, SolveError> {
+pub(crate) async fn get_prefix_index_one(title: &Title, ns: Option<&HashSet<NamespaceID>>, redirect_strat: RedirectFilterStrategy, limit: i64) -> Result<HashSet<Title>, SolveError> {
     let title_ns_id = title.namespace_id();
     if let Some(ns_list) = ns {
         if !ns_list.contains(&title_ns_id) {
@@ -263,7 +263,7 @@ pub(crate) async fn get_prefix_index_one(title: &Title, api: &Api, assert: Optio
 /// `follow_redir`: Whether should follow redirects.
 /// 
 /// `limit`: Query limit.
-pub(crate) async fn get_embed_one(title: &Title, api: &Api, assert: Option<APIAssertType>, ns: Option<&HashSet<NamespaceID>>, redirect_strat: RedirectFilterStrategy, follow_redir: bool, limit: i64) -> Result<HashSet<Title>, SolveError> {
+pub(crate) async fn get_embed_one(title: &Title, ns: Option<&HashSet<NamespaceID>>, redirect_strat: RedirectFilterStrategy, follow_redir: bool, limit: i64) -> Result<HashSet<Title>, SolveError> {
     let elem_name = title.full_pretty(api);
     if elem_name.is_none() {
         Ok(HashSet::new())
@@ -303,7 +303,7 @@ pub(crate) async fn get_embed_one(title: &Title, api: &Api, assert: Option<APIAs
 /// `follow_redir`: Whether should follow redirects.
 /// 
 /// `limit`: Query limit
-pub(crate) async fn get_links_one(title: &Title, api: &Api, assert: Option<APIAssertType>, ns: Option<&HashSet<NamespaceID>>, follow_redir: bool, limit: i64) -> Result<HashSet<Title>, SolveError> {
+pub(crate) async fn get_links_one(title: &Title, ns: Option<&HashSet<NamespaceID>>, follow_redir: bool, limit: i64) -> Result<HashSet<Title>, SolveError> {
     let elem_name = title.full_pretty(api);
     if elem_name.is_none() {
         Ok(HashSet::new())
