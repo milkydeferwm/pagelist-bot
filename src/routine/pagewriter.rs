@@ -144,9 +144,9 @@ impl<'a> PageWriter<'a> {
             } else {
                 let res = page_query.unwrap();
                 let info = res["query"]["pages"].as_array().unwrap()[0].as_object().unwrap();
-                if matches!(info["missing"].as_bool(), Some(true)) {
+                if info.get("missing").is_some() {
                     event!(Level::INFO, target = outputformat.target.as_str(), "target page does not exist, skip");
-                } else if matches!(info["redirect"].as_bool(), Some(true)) {
+                } else if info.get("redirect").is_some() {
                     event!(Level::INFO, target = outputformat.target.as_str(), "target page is a redirect page, skip");
                 } else if let Some(denied_namespace) = self.denied_namespace {
                     if denied_namespace.contains(&info["ns"].as_i64().unwrap()) {
