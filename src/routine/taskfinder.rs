@@ -17,7 +17,7 @@ pub struct TaskFinder {
     global_output_header: Arc<RwLock<String>>,
     task_map: HashMap<i64, TaskRunner>,
 
-    finderhandler: Option<JoinHandle<()>>,
+    finderhandle: Option<JoinHandle<()>>,
 }
 
 impl TaskFinder {
@@ -32,7 +32,7 @@ impl TaskFinder {
             global_output_header: Arc::new(RwLock::new(String::new())),
 
             task_map: HashMap::new(),
-            finderhandler: None,
+            finderhandle: None,
         }
     }
 
@@ -149,14 +149,14 @@ impl TaskFinder {
                 tokio::time::sleep(tokio::time::Duration::from_secs(10 * 60));
             }
         });
-        self.finderhandler = Some(handle);
+        self.finderhandle = Some(handle);
     }
 
     #[inline]
     fn stop(&self) {
-        if let Some(handler) = self.finderhandler {
+        if let Some(handler) = self.finderhandle {
             handler.abort();
-            self.finderhandler = None;
+            self.finderhandle = None;
         }
     }
 

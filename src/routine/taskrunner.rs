@@ -18,7 +18,7 @@ pub struct TaskRunner {
     global_denied_namespace: Arc<RwLock<HashSet<NamespaceID>>>,
     global_output_header: Arc<RwLock<String>>,
 
-    runnerhandler: Option<JoinHandle<()>>,
+    runnerhandle: Option<JoinHandle<()>>,
 }
 
 impl TaskRunner {
@@ -36,7 +36,7 @@ impl TaskRunner {
             global_query_config,
             global_denied_namespace,
             global_output_header,
-            runnerhandler: None,
+            runnerhandle: None,
         }
     }
 
@@ -139,14 +139,14 @@ impl TaskRunner {
                 }
             })
         };
-        self.runnerhandler = Some(handler);
+        self.runnerhandle = Some(handler);
     }
 
     #[inline]
     fn stop(&self) {
-        if let Some(handler) = self.runnerhandler {
+        if let Some(handler) = self.runnerhandle {
             handler.abort();
-            self.runnerhandler = None;
+            self.runnerhandle = None;
         }
     }
 
