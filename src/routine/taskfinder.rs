@@ -36,7 +36,7 @@ impl TaskFinder {
         }
     }
 
-    pub fn start(&'static self) {
+    pub fn start(&'static mut self) {
         self.stop();
         let handle = tokio::spawn(async {
             loop {
@@ -78,19 +78,19 @@ impl TaskFinder {
                 if let Ok(config) = on_site_config {
                     // update global params
                     {
-                        let global_activate = self.global_activate.write().await;
+                        let mut global_activate = self.global_activate.write().await;
                         *global_activate = config.activate;
                     }
                     {
-                        let global_query_config = self.global_query_config.write().await;
+                        let mut global_query_config = self.global_query_config.write().await;
                         *global_query_config = config.default;
                     }
                     {
-                        let global_denied_namespace = self.global_denied_namespace.write().await;
+                        let mut global_denied_namespace = self.global_denied_namespace.write().await;
                         *global_denied_namespace = HashSet::from_iter(config.denyns);
                     }
                     {
-                        let global_output_header = self.global_output_header.write().await;
+                        let mut global_output_header = self.global_output_header.write().await;
                         *global_output_header = config.resultheader;
                     }
                     // fetch tasks
@@ -121,11 +121,11 @@ impl TaskFinder {
                             }
                         }
                         // kill all tasks whose id does not live in the pool
-                        self.task_map.retain(|k, v| task_pool.contains(k));
+                        self.task_map.retain(|k, _| task_pool.contains(k));
                         // create and start new tasks
                         for id in task_pool {
                             if !self.task_map.contains_key(&id) {
-                                let task_runner: TaskRunner = TaskRunner::new(id, self.global_activate.clone(), self.global_query_config.clone(), self.global_denied_namespace.clone(), self.global_output_header.clone());
+                                let mut task_runner: TaskRunner = TaskRunner::new(id, self.global_activate.clone(), self.global_query_config.clone(), self.global_denied_namespace.clone(), self.global_output_header.clone());
                                 task_runner.start();
                                 self.task_map.insert(id, task_runner);
                             }
@@ -133,7 +133,7 @@ impl TaskFinder {
                     } else {
                         // we always set the global activated to false to prevent any accidents
                         {
-                            let global_activate = self.global_activate.write().await;
+                            let mut global_activate = self.global_activate.write().await;
                             *global_activate = false;
                         }
                         event!(Level::WARN, error = ?tasks.unwrap_err(), "cannot get task list");
@@ -141,7 +141,7 @@ impl TaskFinder {
                 } else {
                     // we always set the global activated to false to prevent any accidents
                     {
-                        let global_activate = self.global_activate.write().await;
+                        let mut global_activate = self.global_activate.write().await;
                         *global_activate = false;
                     }
                 }
@@ -153,8 +153,8 @@ impl TaskFinder {
     }
 
     #[inline]
-    fn stop(&self) {
-        if let Some(handler) = self.finderhandle {
+    fn stop(&mut self) {
+        if let Some(handler) = &self.finderhandle {
             handler.abort();
             self.finderhandle = None;
         }
