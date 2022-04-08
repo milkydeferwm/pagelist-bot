@@ -7,17 +7,16 @@ mod def;
 
 pub use error::SolveError;
 use crate::parser::{ir::RegID, ir::RedirectFilterStrategy};
-use crate::types::APIAssertType;
 use util::{get_set_1, get_set_2};
 
 use crate::parser::{Query, ir::Instruction};
 
 use std::collections::{HashSet, HashMap};
-use mediawiki::{title::Title, api::Api};
+use mediawiki::{title::Title};
 
 pub(crate) type Register = HashMap<RegID, HashSet<Title>>;
 
-pub async fn solve_api(query: &Query, api: &Api, assert: Option<APIAssertType>, default_limit: i64) -> Result<HashSet<Title>, SolveError> {
+pub async fn solve_api(query: &Query, default_limit: i64) -> Result<HashSet<Title>, SolveError> {
     // prepare a mock register pool using HashMap
     let mut reg: Register = HashMap::new();
     for inst in query.0.iter() {

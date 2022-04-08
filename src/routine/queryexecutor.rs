@@ -32,7 +32,7 @@ impl QueryExecutor {
                 let query_inst = parse_result.unwrap();
                 let query_result = {
                     API_SERVICE.get_lock().lock().await;
-                    tokio::time::timeout(tokio::time::Duration::from_secs(self.querylimit.timeout), crate::solver::solve_api(&query_inst, api, assert, self.querylimit.querylimit)).await
+                    tokio::time::timeout(tokio::time::Duration::from_secs(self.querylimit.timeout), crate::solver::solve_api(&query_inst, self.querylimit.querylimit)).await
                 };
 
                 if query_result.is_err() {
