@@ -40,7 +40,7 @@ impl TaskRunner {
         }
     }
 
-    pub fn start(&self) {
+    pub fn start(&mut self) {
         self.stop();
         let handler: JoinHandle<()> = {
             let id = self.id;
@@ -129,7 +129,6 @@ impl TaskRunner {
                             // retry in 10 minutes
                             tokio::time::sleep(tokio::time::Duration::from_secs(10 * 60));
                         }
-                        todo!();
                     } else {
                         // need to re-align later
                         aligned_to_cron = false;
@@ -143,8 +142,8 @@ impl TaskRunner {
     }
 
     #[inline]
-    fn stop(&self) {
-        if let Some(handler) = self.runnerhandle {
+    fn stop(&mut self) {
+        if let Some(handler) = &self.runnerhandle {
             handler.abort();
             self.runnerhandle = None;
         }
