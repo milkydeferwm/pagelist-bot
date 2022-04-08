@@ -137,12 +137,16 @@ impl<'a> PageWriter<'a> {
                 "titles".to_string() => outputformat.target.clone()
             ];
             let page_query = {
+                event!(Level::INFO, target = outputformat.target.as_str(), "API Service lock");
                 API_SERVICE.get_lock().lock().await;
+                event!(Level::INFO, target = outputformat.target.as_str(), "API Service lock got");
                 API_SERVICE.get(&params).await
             };
+            event!(Level::INFO, target = outputformat.target.as_str(), "page query got");
             if page_query.is_err() {
                 event!(Level::WARN, target = outputformat.target.as_str(), error = ?page_query.unwrap_err(), "cannot fetch page information");
             } else {
+                event!(Level::INFO, target = outputformat.target.as_str(), "checking prop");
                 let res = page_query.unwrap();
                 let info = res["query"]["pages"].as_array().unwrap()[0].as_object().unwrap();
                 if info.get("missing").is_some() {
