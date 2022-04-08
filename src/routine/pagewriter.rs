@@ -11,7 +11,7 @@ use crate::API_SERVICE;
 pub(crate) struct PageWriter<'a> {
     task_id: i64,
     query_executor: Mutex<QueryExecutor>,
-    denied_namespace: &'a HashSet<NamespaceID>,
+    denied_namespace: Option<&'a HashSet<NamespaceID>>,
     outputformat: &'a [OutputFormat],
     header_template_name: &'a str,
 }
@@ -22,7 +22,7 @@ impl<'a> PageWriter<'a> {
         PageWriter {
             task_id: 0,
             query_executor: Mutex::new(query_exec),
-            denied_namespace: &HashSet::new(),
+            denied_namespace: None,
             outputformat: &[],
             header_template_name: "",
         }
@@ -34,7 +34,7 @@ impl<'a> PageWriter<'a> {
     }
 
     pub fn set_denied_namespace(mut self, ns: &'a HashSet<NamespaceID>) -> Self {
-        self.denied_namespace = ns;
+        self.denied_namespace = Some(ns);
         self
     }
 
@@ -102,7 +102,7 @@ impl<'a> PageWriter<'a> {
                 match char {
                     '$' => { output.push('$'); },
                     '0' => { output.push_str(&API_SERVICE.full_pretty(t).unwrap_or_else(|_| Some("".to_string())).unwrap_or("".to_string())); },
-                    '1' => { output.push_str(API_SERVICE.namespace_name(t).unwrap_or(Some("")).unwrap_or("")); },
+                    '1' => { output.push_str(&API_SERVICE.namespace_name(t).unwrap_or(Some("".to_string())).unwrap_or("".to_string())); },
                     '2' => { output.push_str(t.pretty()); },
                     '@' => { output.push_str(&current_num.to_string()) },
                     '+' => { output.push_str(&total_num.to_string()) },
@@ -147,8 +147,10 @@ impl<'a> PageWriter<'a> {
                     event!(Level::INFO, target = outputformat.target.as_str(), "target page does not exist, skip");
                 } else if matches!(info["redirect"].as_bool(), Some(true)) {
                     event!(Level::INFO, target = outputformat.target.as_str(), "target page is a redirect page, skip");
-                } else if self.denied_namespace.contains(&info["ns"].as_i64().unwrap()) {
-                    event!(Level::INFO, target = outputformat.target.as_str(), "target page is in disallowed namespace, skip");
+                } else if let Some(denied_namespace) = self.denied_namespace {
+                    if denied_namespace.contains(&info["ns"].as_i64().unwrap()) {
+                        event!(Level::INFO, target = outputformat.target.as_str(), "target page is in disallowed namespace, skip");
+                    }
                 } else {
                     // Not a redirect nor a missing page nor in a denied namespace, continue
                     let mut executor = self.query_executor.lock().await;
