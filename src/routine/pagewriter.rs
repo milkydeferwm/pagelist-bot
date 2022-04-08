@@ -9,7 +9,7 @@ use super::{types::OutputFormat, queryexecutor::{QueryExecutor, QueryExecutorErr
 use crate::API_SERVICE;
 
 pub(crate) struct PageWriter<'a> {
-    task_id: &'a str,
+    task_id: i64,
     query_executor: Mutex<QueryExecutor>,
     denied_namespace: &'a HashSet<NamespaceID>,
     outputformat: &'a [OutputFormat],
@@ -20,7 +20,7 @@ impl<'a> PageWriter<'a> {
 
     pub fn new(query_exec: QueryExecutor) -> Self {
         PageWriter {
-            task_id: "",
+            task_id: 0,
             query_executor: Mutex::new(query_exec),
             denied_namespace: &HashSet::new(),
             outputformat: &[],
@@ -28,7 +28,7 @@ impl<'a> PageWriter<'a> {
         }
     }
 
-    pub fn set_task_id(mut self, id: &'a str) -> Self {
+    pub fn set_task_id(mut self, id: i64) -> Self {
         self.task_id = id;
         self
     }

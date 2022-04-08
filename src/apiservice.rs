@@ -142,6 +142,15 @@ impl APIService {
         }
     }
 
+    /// Create a title from full name
+    pub fn title_new_from_full(&self, title: &str) -> Result<Title, APIServiceError> {
+        if let Some(api) = &self.api {
+            Ok(Title::new_from_full(title, api))
+        } else {
+            Err(APIServiceError::NoAPI)
+        }
+    }
+
     #[inline]
     fn extract_base_username(&self) -> String {
         self.login.unwrap().username.split('@').next().unwrap().to_string()

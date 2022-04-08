@@ -1,12 +1,15 @@
 //! Page List Bot actual workflow and routines
 //! 
 
-pub mod daemon;
+// pub mod daemon;
 // pub mod task;
-mod types;
 // mod output;
-mod pagewriter;
+pub mod taskfinder;
+pub mod taskrunner;
 mod queryexecutor;
-mod taskrunner;
+mod pagewriter;
 
-pub use daemon::task_daemon;
+mod types;
+
+// pub use daemon::task_daemon;
+pub use taskfinder::TaskFinder;

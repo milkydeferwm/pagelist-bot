@@ -51,7 +51,6 @@ impl TaskConfig {
 pub struct SiteConfig {
     pub activate: bool,
     pub taskdir: String,
-    pub interval: u64,
     pub resultheader: String,
     pub denyns: Vec<mediawiki::api::NamespaceID>,
     pub default: TaskConfig,

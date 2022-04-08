@@ -1,7 +1,7 @@
 use std::fs;
 use apiservice::APIService;
+use routine::TaskFinder;
 use serde_json::Value;
-use mediawiki::api::Api;
 use tracing::{info_span, info, trace, error, Instrument};
 use tracing_subscriber::{fmt::format::FmtSpan, filter, prelude::*};
 
@@ -61,24 +61,21 @@ async fn main() {
         (profile, login)
     });
 
-    /* 
-    // initialize mediawiki api instance
-    let mut api = async {
-        info!(target: "bootstrap", "creating API object");
-        info!(target: "bootstrap", "accessing MediaWiki Action API endpoint \"{}\"", &profile.api);
-        let mut api: Api = Api::new(&profile.api).await.expect("cannot access target MediaWiki instance");
-        info!(target: "bootstrap", "setting up API object maxlag");
-        api.set_maxlag(Some(5));
-        info!(target: "bootstrap", "setting up API max retry attempts");
-        api.set_max_retry_attempts(3);
-        info!(target: "bootstrap", "setting up API user agent");
-        api.set_user_agent(format!("Page List Bot / via User:{}", &login.username));
-        info!(target: "bootstrap", "API user agent: {}", api.user_agent());
-        info!(target: "bootstrap", "creating API object success");
-        api
-    }.instrument(info_span!(target: "bootstrap", "api init")).await; */
+    let task_finder: TaskFinder = TaskFinder::new(&profile.config);
+
     API_SERVICE.setup(login, profile);
     API_SERVICE.start();
+
+    task_finder.start();
+
+    let ctrl_c_res = tokio::signal::ctrl_c().await;
+    match ctrl_c_res {
+        Ok(()) => { info!("ctrl-c detected") },
+        Err(err) => {
+            error!("unable to listen for shutdown signal: {}", err);
+        },
+    }
+
 /* 
     async {
         info!(target: "bootstrap", "logging in as user \"{}\"", &login.username);

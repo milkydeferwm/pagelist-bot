@@ -11,8 +11,8 @@ use crate::{types::TaskConfig, API_SERVICE};
 use super::types::TaskInfo;
 use super::{pagewriter::PageWriter, queryexecutor::QueryExecutor};
 
-struct TaskRunner {
-    id: String,
+pub struct TaskRunner {
+    id: i64,
     global_activate: Arc<RwLock<bool>>,
     global_query_config: Arc<RwLock<TaskConfig>>,
     global_denied_namespace: Arc<RwLock<HashSet<NamespaceID>>>,
@@ -24,14 +24,14 @@ struct TaskRunner {
 impl TaskRunner {
 
     pub fn new(
-        id: &str,
+        id: i64,
         global_activate: Arc<RwLock<bool>>,
         global_query_config: Arc<RwLock<TaskConfig>>,
         global_denied_namespace: Arc<RwLock<HashSet<NamespaceID>>>,
         global_output_header: Arc<RwLock<String>>
     ) -> Self {
         TaskRunner {
-            id: id.to_string(),
+            id,
             global_activate,
             global_query_config,
             global_denied_namespace,
@@ -43,7 +43,7 @@ impl TaskRunner {
     pub fn start(&self) {
         self.stop();
         let handler: JoinHandle<()> = {
-            let id = self.id.clone();
+            let id = self.id;
             let global_activate = self.global_activate.clone();
             let global_query_config = self.global_query_config.clone();
             let global_denied_namespace = self.global_denied_namespace.clone();
@@ -59,7 +59,7 @@ impl TaskRunner {
                         let params = hashmap![
                             "action".to_string() => "query".to_string(),
                             "prop".to_string() => "revisions".to_string(),
-                            "pageids".to_string() => id.clone(),
+                            "pageids".to_string() => id.to_string(),
                             "rvslots".to_string() => "*".to_string(),
                             "rvprop".to_string() => "content".to_string(),
                             "rvlimit".to_string() => "1".to_string()
@@ -109,7 +109,7 @@ impl TaskRunner {
                                 value.clone()
                             };
                             let writer = PageWriter::new(QueryExecutor::new(&task.expr, &task_config))
-                                .set_task_id(&id)
+                                .set_task_id(id)
                                 .set_output_format(&task.output)
                                 .set_denied_namespace(&denied_ns)
                                 .set_header_template_name(&output_header);
