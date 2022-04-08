@@ -9,7 +9,9 @@ edition = "2021"
 # strip = true
 
 [dependencies]
+chrono = "^0.4"
 clap = { version = "^3.1", features = [ "cargo" ] }
+cron = "^0.10"
 hex = "^0.4"
 lalrpop-util = { version = "^0.19", features = [ "lexer" ] }
 md-5 = "^0.10"

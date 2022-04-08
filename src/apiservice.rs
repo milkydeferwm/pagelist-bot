@@ -4,7 +4,7 @@ use std::{collections::HashMap, sync::Arc};
 
 use mediawiki::{api::Api, media_wiki_error::MediaWikiError, title::Title};
 use serde_json::Value;
-use tokio::sync::Mutex;
+use tokio::{sync::Mutex, task::JoinHandle};
 use crate::types::{LoginCredential, SiteProfile};
 
 #[derive(Debug)]
@@ -30,6 +30,8 @@ pub struct APIService {
     api: Option<Api>,
     network_lock: Arc<Mutex<()>>,
     csrf: String,
+
+    keepalivehandle: Option<JoinHandle<()>>,
 }
 
 impl APIService {
@@ -42,6 +44,7 @@ impl APIService {
             api: None,
             network_lock: Arc::new(Mutex::new(())),
             csrf: "".to_string(),
+            keepalivehandle: None,
         }
     }
 
@@ -171,7 +174,8 @@ impl APIService {
 
     /// Starts the daemon process. This should only be called once
     pub fn start(&'static self) {
-        tokio::spawn(async {
+        self.stop();
+        let handle = tokio::spawn(async {
             // API status checker runs every hour
             let mut interval = tokio::time::interval(tokio::time::Duration::from_secs(60 * 60));
             loop {
@@ -210,6 +214,21 @@ impl APIService {
                 }
             }
         });
+        self.keepalivehandle = Some(handle);
     }
 
+    #[inline]
+    fn stop(&self) {
+        if let Some(handle) = self.keepalivehandle {
+            handle.abort();
+            self.keepalivehandle = None;
+        }
+    }
+
+}
+
+impl Drop for APIService {
+    fn drop(&mut self) {
+        self.stop();
+    }
 }

@@ -1,27 +1,28 @@
-use core::cell::RefCell;
+use std::collections::HashSet;
 
 use md5::{Md5, Digest};
 use mediawiki::{hashmap, api::NamespaceID, title::Title};
+use tokio::sync::Mutex;
 use tracing::{event, Level};
 
 use super::{types::OutputFormat, queryexecutor::{QueryExecutor, QueryExecutorError}};
 use crate::API_SERVICE;
 
-struct PageWriter<'a> {
+pub(crate) struct PageWriter<'a> {
     task_id: &'a str,
-    query_executor: RefCell<QueryExecutor>,
-    denied_namespace: &'a [NamespaceID],
+    query_executor: Mutex<QueryExecutor>,
+    denied_namespace: &'a HashSet<NamespaceID>,
     outputformat: &'a [OutputFormat],
     header_template_name: &'a str,
 }
 
 impl<'a> PageWriter<'a> {
 
-    pub fn new(query_exec: RefCell<QueryExecutor>) -> Self {
+    pub fn new(query_exec: QueryExecutor) -> Self {
         PageWriter {
             task_id: "",
-            query_executor: query_exec,
-            denied_namespace: &[],
+            query_executor: Mutex::new(query_exec),
+            denied_namespace: &HashSet::new(),
             outputformat: &[],
             header_template_name: "",
         }
@@ -32,7 +33,7 @@ impl<'a> PageWriter<'a> {
         self
     }
 
-    pub fn set_denied_namespace(mut self, ns: &'a [NamespaceID]) -> Self {
+    pub fn set_denied_namespace(mut self, ns: &'a HashSet<NamespaceID>) -> Self {
         self.denied_namespace = ns;
         self
     }
@@ -150,7 +151,7 @@ impl<'a> PageWriter<'a> {
                     event!(Level::INFO, target = outputformat.target.as_str(), "target page is in disallowed namespace, skip");
                 } else {
                     // Not a redirect nor a missing page nor in a denied namespace, continue
-                    let mut executor = self.query_executor.borrow_mut();
+                    let mut executor = self.query_executor.lock().await;
                     let result = executor.execute().await;
                     // Prepare contents
                     let summary = self.make_edit_summary(result);

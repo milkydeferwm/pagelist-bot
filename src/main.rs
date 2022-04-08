@@ -85,7 +85,7 @@ async fn main() {
         api.login(&login.username, &login.password).await.expect("cannot log in");
         info!(target: "bootstrap", "logging in as user \"{}\" success", &login.username);
     }.instrument(info_span!(target: "bootstrap", "log in")).await; */
-
+/* 
     async {
         info!(target: "bootstrap", "starting up task daemon");
         tokio::select! {
@@ -102,6 +102,6 @@ async fn main() {
             }
         };
     }.instrument(info_span!(target: "bootstrap", "main")).await;
-
-    info_span!(target: "bootstrap", "clean up").in_scope(|| info!(target: "bootstrap", "shut down all tasks"));
+*/
+    // info_span!(target: "bootstrap", "clean up").in_scope(|| info!(target: "bootstrap", "shut down all tasks"));
 }
