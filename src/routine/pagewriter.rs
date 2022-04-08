@@ -102,8 +102,8 @@ impl<'a> PageWriter<'a> {
                 // only accept $0 (full name), $1 (namespace), $2 (name), $@ (current index), $+ (total size), $$ ($)
                 match char {
                     '$' => { output.push('$'); },
-                    '0' => { output.push_str(&API_SERVICE.full_pretty(t).await.unwrap_or_else(|_| Some("".to_string())).unwrap_or("".to_string())); },
-                    '1' => { output.push_str(&API_SERVICE.namespace_name(t).await.unwrap_or(Some("".to_string())).unwrap_or("".to_string())); },
+                    '0' => { output.push_str(&API_SERVICE.full_pretty(t).await.unwrap_or_else(|_| Some("".to_string())).unwrap_or_else(|| "".to_string())); },
+                    '1' => { output.push_str(&API_SERVICE.namespace_name(t).await.unwrap_or_else(|_| Some("".to_string())).unwrap_or_else(|| "".to_string())); },
                     '2' => { output.push_str(t.pretty()); },
                     '@' => { output.push_str(&current_num.to_string()) },
                     '+' => { output.push_str(&total_num.to_string()) },
@@ -129,6 +129,7 @@ impl<'a> PageWriter<'a> {
     pub async fn start(&self) {
         // Iterate through each page
         for outputformat in self.outputformat {
+            event!(Level::INFO, target = outputformat.target.as_str(), "target page writer started");
             // Check whether the page is a redirect or missing
             let params = hashmap![
                 "action".to_string() => "query".to_string(),
@@ -153,6 +154,7 @@ impl<'a> PageWriter<'a> {
                         event!(Level::INFO, target = outputformat.target.as_str(), "target page is in disallowed namespace, skip");
                     }
                 } else {
+                    event!(Level::INFO, target = outputformat.target.as_str(), "target page will write");
                     // Not a redirect nor a missing page nor in a denied namespace, continue
                     let mut executor = self.query_executor.lock().await;
                     let result = executor.execute().await;
@@ -161,7 +163,7 @@ impl<'a> PageWriter<'a> {
                     let mut content = self.make_header_content(result);
                     content.push_str(&match result {
                         Ok(ls) => {
-                            if ls.len() <= 0 {
+                            if ls.is_empty() {
                                 outputformat.empty.clone()
                             } else {
                                 let list_size = ls.len();
@@ -177,6 +179,7 @@ impl<'a> PageWriter<'a> {
                         },
                         Err(_) => outputformat.failure.clone(),
                     });
+                    event!(Level::INFO, target = outputformat.target.as_str(), "content ready");
                     // write to page
                     let md5 = self.get_md5(&content);
                     let params = hashmap![
@@ -195,7 +198,7 @@ impl<'a> PageWriter<'a> {
                     if edit_result.is_err() {
                         event!(Level::WARN, target = outputformat.target.as_str(), error = ?edit_result.unwrap_err(), "cannot edit page");
                     } else {
-                        event!(Level::WARN, target = outputformat.target.as_str(), "edit page successful");
+                        event!(Level::INFO, target = outputformat.target.as_str(), "edit page successful");
                     }
                 }
             }

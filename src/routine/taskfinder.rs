@@ -46,6 +46,7 @@ impl TaskFinder {
         _ = tokio::task::spawn_blocking(|| self.stop()).await;
         let handle = tokio::spawn(async {
             loop {
+                event!(Level::INFO, "task finder starts");
                 // fetch on-site config
                 let on_site_config: Result<SiteConfig, ()> = {
                     // fetch page content
@@ -64,11 +65,7 @@ impl TaskFinder {
                         API_SERVICE.get_lock().lock().await;
                         API_SERVICE.get(&params).await
                     };
-                    if page_content.is_err() {
-                        event!(Level::WARN, error = ?page_content.unwrap_err(), "cannot fetch on-site configuration");
-                        Err(())
-                    } else {
-                        let page_content = page_content.unwrap();
+                    if let Ok(page_content) = page_content {
                         let page_content_str = page_content["query"]["pages"][0]["revisions"][0]["slots"]["main"]["content"].as_str();
                         if let Some(page_content_str) = page_content_str {
                             let config = serde_json::from_str(page_content_str);
@@ -82,9 +79,13 @@ impl TaskFinder {
                             event!(Level::WARN, response = ?page_content, "cannot find page content in response");
                             Err(())
                         }
-                    }
+                    } else {
+                        event!(Level::WARN, error = ?page_content.unwrap_err(), "cannot fetch on-site configuration");
+                        Err(())
+                    } 
                 };
                 if let Ok(config) = on_site_config {
+                    event!(Level::INFO, "on-site config fetch successful");
                     // update global params
                     {
                         let mut global_activate = self.global_activate.write().await;
@@ -102,6 +103,7 @@ impl TaskFinder {
                         let mut global_output_header = self.global_output_header.write().await;
                         *global_output_header = config.resultheader;
                     }
+                    event!(Level::INFO, "global params update successful");
                     // fetch tasks
                     // so long as we can get site config, there is always an `Api` present in the service
                     let taskdir_title = API_SERVICE.title_new_from_full(&config.taskdir).await.unwrap(); 
@@ -129,19 +131,21 @@ impl TaskFinder {
                                 task_pool.insert(pageid);
                             }
                         }
-                        // kill all tasks whose id does not live in the pool
+                        event!(Level::INFO, "task gathered with {} tasks", task_pool.len());
                         {
                             let mut task_map = self.task_map.lock().await;
+                            // kill all tasks whose id does not live in the pool
                             (*task_map).retain(|k, _| task_pool.contains(k));
                             // create and start new tasks
                             for id in task_pool {
-                                if !(*task_map).contains_key(&id) {
+                                (*task_map).entry(id).or_insert_with(|| {
                                     let mut task_runner: TaskRunner = TaskRunner::new(id, self.global_activate.clone(), self.global_query_config.clone(), self.global_denied_namespace.clone(), self.global_output_header.clone());
                                     task_runner.start();
-                                    (*task_map).insert(id, task_runner);
-                                }
+                                    task_runner
+                                });
                             }
                         }
+                        event!(Level::INFO, "task pool updated");
                     } else {
                         // we always set the global activated to false to prevent any accidents
                         {

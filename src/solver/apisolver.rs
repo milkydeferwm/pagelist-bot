@@ -158,7 +158,7 @@ pub(crate) async fn get_category_members_one(title: &Title, ns: Option<&HashSet<
         let mut cmnamespace: HashSet<NamespaceID> = HashSet::new();
         // If we still have some namespaces left in `ns_clone`...
         if let Some(ns_list) = &ns_clone {
-            if ns_list.len() > 0 {
+            if !ns_list.is_empty() {
                 cmtype.push("page".to_string());
                 cmnamespace.extend(ns_list);
             }

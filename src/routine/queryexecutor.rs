@@ -1,4 +1,5 @@
 use mediawiki::title::Title;
+use tracing::{event, Level};
 
 use crate::API_SERVICE;
 use super::types::TaskConfig;
@@ -22,12 +23,13 @@ impl QueryExecutor {
     }
 
     pub async fn execute(&mut self) -> &Result<Vec<Title>, QueryExecutorError> {
+        event!(Level::INFO, "executor starts");
         if self.result.is_none() {
+            event!(Level::INFO, "executor lazy loads");
             // run the query first
             let parse_result = crate::parser::parse(&self.query);
             if parse_result.is_err() {
-                // warn!(target: "task runner", "parse failure");
-                // info!(target: "task runner", "error: {}", query_result.unwrap_err());
+                event!(Level::WARN, error = ?parse_result.unwrap_err(), "parse failure");
                 self.result = Some(Err(QueryExecutorError::Parse));
             } else {
                 let query_inst = parse_result.unwrap();
@@ -37,10 +39,12 @@ impl QueryExecutor {
                 };
 
                 if query_result.is_err() {
+                    event!(Level::WARN, "query timeout");
                     self.result = Some(Err(QueryExecutorError::Timeout));
                 } else {
                     let query_result = query_result.unwrap();
                     if query_result.is_err() {
+                        event!(Level::WARN, error = ?query_result.unwrap_err(), "solve failure");
                         self.result = Some(Err(QueryExecutorError::Solve));
                     } else {
                         let query_result = query_result.unwrap();

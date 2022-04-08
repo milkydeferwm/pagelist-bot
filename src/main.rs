@@ -31,7 +31,7 @@ async fn main() {
         .with(
             tracing_subscriber::fmt::layer()
                 .with_span_events(FmtSpan::NONE)
-                .with_filter(filter::LevelFilter::WARN)
+                .with_filter(filter::LevelFilter::INFO)
         )
         .with(
             tracing_subscriber::fmt::layer()

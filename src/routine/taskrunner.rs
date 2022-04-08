@@ -54,6 +54,7 @@ impl TaskRunner {
                 let mut aligned_to_cron: bool = false;
                 loop {
                     // fetch task information
+                    event!(Level::INFO, "task started");
                     let task: Result<TaskInfo, ()> = {
                         // fetch page content
                         let params = hashmap![
@@ -68,11 +69,10 @@ impl TaskRunner {
                             API_SERVICE.get_lock().lock().await;
                             API_SERVICE.get(&params).await
                         };
-                        if page_content.is_err() {
-                            event!(Level::WARN, error = ?page_content.unwrap_err(), "cannot fetch task content");
-                            Err(())
-                        } else {
-                            let page_content = page_content.unwrap();
+
+                        if let Ok(page_content) = page_content {
+                            event!(Level::INFO, "fetch task content successful");
+                            //let page_content = page_content.unwrap();
                             let page_content_str = page_content["query"]["pages"][0]["revisions"][0]["slots"]["main"]["content"].as_str();
                             if let Some(page_content_str) = page_content_str {
                                 let task = serde_json::from_str(page_content_str);
@@ -86,7 +86,10 @@ impl TaskRunner {
                                 event!(Level::WARN, response = ?page_content, "cannot find page content in response");
                                 Err(())
                             }
-                        }
+                        } else {
+                            event!(Level::WARN, error = ?page_content.unwrap_err(), "cannot fetch task content");
+                            Err(())
+                        } 
                     };
                     if let Ok(task) = task {
                         let global_activated = {

@@ -20,10 +20,9 @@ type PLBotParseResult = Result<Query, PLBotParserError>;
 
 pub fn parse(src: &str) -> PLBotParseResult {
     let ast_res = grammar::ExprParser::new().parse(src);
-    let ast;
-    match ast_res {
+    let ast = match ast_res {
         Ok(e) => {
-            ast = e;
+            e
         },
         Err(_) => {
             return Err(PLBotParserError::Parse);
