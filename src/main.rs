@@ -19,7 +19,7 @@ lazy_static! {
 }
 
 /// The main function parses command line arguments, and extracts important information from config files.
-/// Anything related to API is then spawned to `task_daemon`.
+/// API_SERVICE is initialized, and TASK_FINDER is fired
 #[tokio::main]
 async fn main() {
     let args = arg::build_argparse().get_matches();
