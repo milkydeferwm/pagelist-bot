@@ -71,6 +71,7 @@ async fn main() {
     }
 
     API_SERVICE.setup(login, profile).await;
+    API_SERVICE.try_init().await;
     API_SERVICE.start().await;
 
     TASK_FINDER.set_config_location(&config_loc).await;

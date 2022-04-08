@@ -212,6 +212,32 @@ impl APIService {
         }
     }
 
+    pub async fn try_init(&'static self) {
+        _ = tokio::task::spawn_blocking(|| self.stop()).await;
+        // Try to initialize the API object...
+        let api_url = {
+            let lock = self.profile.lock().await;
+            lock.as_ref().unwrap().api.clone()
+        };
+        let (username, password) = {
+            let lock = self.login.lock().await;
+            (lock.as_ref().unwrap().username.clone(), lock.as_ref().unwrap().password.clone())
+        };
+        let api_obj = Api::new(&api_url).await;
+        if let Ok(mut api_obj) = api_obj {
+            api_obj.set_maxlag(Some(5));
+            api_obj.set_max_retry_attempts(3);
+            api_obj.set_user_agent(format!("Page List Bot / via User:{}", username.split('@').next().unwrap()));
+            let _ = api_obj.login(&username, &password).await;
+            if let Ok(csrf) = api_obj.get_edit_token().await {
+                let mut self_csrf = self.csrf.write().await;
+                *self_csrf = csrf;
+            }
+            let mut api = self.api.write().await;
+            *api = Some(api_obj);
+        }
+    }
+
     /// Starts the daemon process. This should only be called once
     pub async fn start(&'static self) {
         _ = tokio::task::spawn_blocking(|| self.stop()).await;
