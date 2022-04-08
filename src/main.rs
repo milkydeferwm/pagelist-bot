@@ -76,29 +76,4 @@ async fn main() {
         },
     }
 
-/* 
-    async {
-        info!(target: "bootstrap", "logging in as user \"{}\"", &login.username);
-        api.login(&login.username, &login.password).await.expect("cannot log in");
-        info!(target: "bootstrap", "logging in as user \"{}\" success", &login.username);
-    }.instrument(info_span!(target: "bootstrap", "log in")).await; */
-/* 
-    async {
-        info!(target: "bootstrap", "starting up task daemon");
-        tokio::select! {
-            _ = routine::task_daemon(profile.config.clone(), api.clone(), profile.assert) => {
-                error!(target: "bootstrap", "task daemon unexpectedly exits");
-            }
-            ctrl_c_res = tokio::signal::ctrl_c() => {
-                match ctrl_c_res {
-                    Ok(()) => { info!(target: "bootstrap", "ctrl-c detected") },
-                    Err(err) => {
-                        error!(target: "bootstrap", "unable to listen for shutdown signal: {}", err);
-                    },
-                }
-            }
-        };
-    }.instrument(info_span!(target: "bootstrap", "main")).await;
-*/
-    // info_span!(target: "bootstrap", "clean up").in_scope(|| info!(target: "bootstrap", "shut down all tasks"));
 }
