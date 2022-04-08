@@ -93,10 +93,12 @@ impl TaskRunner {
                     };
                     if let Ok(task) = task {
                         let global_activated = {
-                            *global_activate.read().await
+                            let glb_lock = global_activate.read().await;
+                            *glb_lock
                         };
                         // run the task only if bot is globally activated, the task is activated, and the runner is aligned to cron
                         if global_activated && task.activate && aligned_to_cron {
+                            event!(Level::INFO, "task activated");
                             let task_config = {
                                 let value = global_query_config.read().await;
                                 let timeout = task.timeout.unwrap_or(value.timeout);
@@ -123,6 +125,7 @@ impl TaskRunner {
                         if let Ok(schedule) = schedule {
                             let waketime = schedule.upcoming(chrono::Utc).next().unwrap();
                             let duration = waketime.signed_duration_since(chrono::Utc::now()).to_std().unwrap();
+                            event!(Level::INFO, "task will sleep until {}", waketime);
                             aligned_to_cron = true;
                             tokio::time::sleep(duration).await;
                         } else {
