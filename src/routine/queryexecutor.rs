@@ -1,6 +1,7 @@
 use mediawiki::title::Title;
 
-use crate::{types::TaskConfig, API_SERVICE};
+use crate::API_SERVICE;
+use super::types::TaskConfig;
 
 pub enum QueryExecutorError {
     Timeout,

@@ -1,8 +1,9 @@
 use std::fs;
+use lazy_static::lazy_static;
 use apiservice::APIService;
 use routine::TaskFinder;
 use serde_json::Value;
-use tracing::{info_span, info, trace, error, Instrument};
+use tracing::{info_span, info, trace, error/*, Instrument*/};
 use tracing_subscriber::{fmt::format::FmtSpan, filter, prelude::*};
 
 mod parser;
@@ -13,7 +14,9 @@ mod arg;
 mod apiservice;
 mod types;
 
-static API_SERVICE: APIService = APIService::new();
+lazy_static! {
+    static ref API_SERVICE: APIService = APIService::new();
+}
 
 /// The main function parses command line arguments, and extracts important information from config files.
 /// Anything related to API is then spawned to `task_daemon`.
@@ -61,12 +64,17 @@ async fn main() {
         (profile, login)
     });
 
-    let task_finder: TaskFinder = TaskFinder::new(&profile.config);
+    let config_loc = profile.config.to_owned();
+
+    lazy_static! {
+        static ref TASK_FINDER: TaskFinder = TaskFinder::new();
+    }
 
     API_SERVICE.setup(login, profile);
     API_SERVICE.start();
 
-    task_finder.start();
+    TASK_FINDER.set_config_location(&config_loc);
+    TASK_FINDER.start();
 
     let ctrl_c_res = tokio::signal::ctrl_c().await;
     match ctrl_c_res {

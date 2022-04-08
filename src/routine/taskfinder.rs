@@ -1,42 +1,48 @@
 use std::{collections::{HashMap, HashSet}, sync::Arc};
 
 use mediawiki::{hashmap, api::NamespaceID};
-use tokio::{task::JoinHandle, sync::RwLock};
+use tokio::{task::JoinHandle, sync::{RwLock, Mutex}};
 use tracing::{event, Level};
 
-use crate::{types::{SiteConfig, TaskConfig}, API_SERVICE};
+use crate::API_SERVICE;
 
+use super::types::{SiteConfig, TaskConfig};
 use super::taskrunner::TaskRunner;
 
 pub struct TaskFinder {
-    on_site_config_location: String,
+    on_site_config_location: Mutex<String>,
 
     global_activate: Arc<RwLock<bool>>,
     global_query_config: Arc<RwLock<TaskConfig>>,
     global_denied_namespace: Arc<RwLock<HashSet<NamespaceID>>>,
     global_output_header: Arc<RwLock<String>>,
-    task_map: HashMap<i64, TaskRunner>,
+    task_map: Mutex<HashMap<i64, TaskRunner>>,
 
-    finderhandle: Option<JoinHandle<()>>,
+    finderhandle: Mutex<Option<JoinHandle<()>>>,
 }
 
 impl TaskFinder {
 
-    pub fn new(config_location: &str) -> Self {
+    pub fn new() -> Self {
         TaskFinder {
-            on_site_config_location: config_location.to_owned(),
+            on_site_config_location: Mutex::new("".to_owned()),
 
             global_activate: Arc::new(RwLock::new(false)),
             global_query_config: Arc::new(RwLock::new(TaskConfig::new())),
             global_denied_namespace: Arc::new(RwLock::new(HashSet::new())),
             global_output_header: Arc::new(RwLock::new(String::new())),
 
-            task_map: HashMap::new(),
-            finderhandle: None,
+            task_map: Mutex::new(HashMap::new()),
+            finderhandle: Mutex::new(None),
         }
     }
 
-    pub fn start(&'static mut self) {
+    pub fn set_config_location(&self, config_location: &str) {
+        let mut self_config_loc = self.on_site_config_location.blocking_lock();
+        *self_config_loc = config_location.to_owned();
+    }
+
+    pub fn start(&'static self) {
         self.stop();
         let handle = tokio::spawn(async {
             loop {
@@ -46,7 +52,10 @@ impl TaskFinder {
                     let params = hashmap![
                         "action".to_string() => "query".to_string(),
                         "prop".to_string() => "revisions".to_string(),
-                        "titles".to_string() => self.on_site_config_location.clone(),
+                        "titles".to_string() => {
+                            let lock = self.on_site_config_location.lock().await;
+                            (*lock).clone()
+                        },
                         "rvslots".to_string() => "*".to_string(),
                         "rvprop".to_string() => "content".to_string(),
                         "rvlimit".to_string() => "1".to_string()
@@ -121,13 +130,16 @@ impl TaskFinder {
                             }
                         }
                         // kill all tasks whose id does not live in the pool
-                        self.task_map.retain(|k, _| task_pool.contains(k));
-                        // create and start new tasks
-                        for id in task_pool {
-                            if !self.task_map.contains_key(&id) {
-                                let mut task_runner: TaskRunner = TaskRunner::new(id, self.global_activate.clone(), self.global_query_config.clone(), self.global_denied_namespace.clone(), self.global_output_header.clone());
-                                task_runner.start();
-                                self.task_map.insert(id, task_runner);
+                        {
+                            let mut task_map = self.task_map.lock().await;
+                            (*task_map).retain(|k, _| task_pool.contains(k));
+                            // create and start new tasks
+                            for id in task_pool {
+                                if !(*task_map).contains_key(&id) {
+                                    let mut task_runner: TaskRunner = TaskRunner::new(id, self.global_activate.clone(), self.global_query_config.clone(), self.global_denied_namespace.clone(), self.global_output_header.clone());
+                                    task_runner.start();
+                                    (*task_map).insert(id, task_runner);
+                                }
                             }
                         }
                     } else {
@@ -146,18 +158,20 @@ impl TaskFinder {
                     }
                 }
                 // sleep for a fixed 10 minutes
-                tokio::time::sleep(tokio::time::Duration::from_secs(10 * 60));
+                tokio::time::sleep(tokio::time::Duration::from_secs(10 * 60)).await;
             }
         });
-        self.finderhandle = Some(handle);
+        let mut finderhandle = self.finderhandle.blocking_lock();
+        *finderhandle = Some(handle);
     }
 
     #[inline]
-    fn stop(&mut self) {
-        if let Some(handler) = &self.finderhandle {
-            handler.abort();
-            self.finderhandle = None;
+    fn stop(&self) {
+        let mut finderhandle = self.finderhandle.blocking_lock();
+        if let Some(handle) = &*finderhandle {
+            handle.abort();
         }
+        *finderhandle = None;
     }
 
 }

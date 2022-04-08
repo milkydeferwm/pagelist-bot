@@ -1,10 +1,8 @@
-
 use super::error::SolveError;
 
-use crate::types::APIAssertType;
 use crate::parser::ir::RegID;
 
-use std::collections::{HashSet, HashMap};
+use std::collections::HashSet;
 use mediawiki::title::Title;
 
 use super::Register;
@@ -26,12 +24,6 @@ pub(crate) fn get_set_2<'a>(reg: &'a Register, reg_id1: &'a RegID, reg_id2: &'a 
     } else {
         Err(SolveError::UnknownIntermediateValue)
     }
-}
-
-pub(crate) fn insert_assert_param(params: &mut HashMap<String, String>, assert: Option<APIAssertType>) {
-    if let Some(a) = assert {
-        params.insert("assert".to_string(), a.to_string());
-    };
 }
 
 pub(crate) fn concat_params<T>(v: &HashSet<T>) -> String 

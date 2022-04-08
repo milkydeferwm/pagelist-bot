@@ -31,27 +31,3 @@ pub struct SiteProfile {
     pub botflag: bool,
     pub config: String,
 }
-
-#[derive(PartialEq, Eq, Clone, Debug, serde::Deserialize)]
-pub struct TaskConfig {
-    pub timeout: u64,
-    pub querylimit: i64,
-}
-
-impl TaskConfig {
-    pub fn new() -> Self {
-        TaskConfig {
-            timeout: 0,
-            querylimit: 0,
-        }
-    }
-}
-
-#[derive(PartialEq, Eq, Clone, Debug, serde::Deserialize)]
-pub struct SiteConfig {
-    pub activate: bool,
-    pub taskdir: String,
-    pub resultheader: String,
-    pub denyns: Vec<mediawiki::api::NamespaceID>,
-    pub default: TaskConfig,
-}

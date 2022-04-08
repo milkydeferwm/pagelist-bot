@@ -6,9 +6,9 @@ use mediawiki::hashmap;
 use tokio::{task::JoinHandle, sync::RwLock};
 use tracing::{event, Level};
 
-use crate::{types::TaskConfig, API_SERVICE};
+use crate::API_SERVICE;
 
-use super::types::TaskInfo;
+use super::types::{TaskInfo, TaskConfig};
 use super::{pagewriter::PageWriter, queryexecutor::QueryExecutor};
 
 pub struct TaskRunner {
@@ -121,19 +121,19 @@ impl TaskRunner {
                             let waketime = schedule.upcoming(chrono::Utc).next().unwrap();
                             let duration = waketime.signed_duration_since(chrono::Utc::now()).to_std().unwrap();
                             aligned_to_cron = true;
-                            tokio::time::sleep(duration);
+                            tokio::time::sleep(duration).await;
                         } else {
                             event!(Level::WARN, cron = task.cron.as_str(), error = ?schedule.unwrap_err(), "cannot parse cron specification");
                             // need to re-align later
                             aligned_to_cron = false;
                             // retry in 10 minutes
-                            tokio::time::sleep(tokio::time::Duration::from_secs(10 * 60));
+                            tokio::time::sleep(tokio::time::Duration::from_secs(10 * 60)).await;
                         }
                     } else {
                         // need to re-align later
                         aligned_to_cron = false;
                         // retry in 10 minutes
-                        tokio::time::sleep(tokio::time::Duration::from_secs(10 * 60));
+                        tokio::time::sleep(tokio::time::Duration::from_secs(10 * 60)).await;
                     }
                 }
             })
