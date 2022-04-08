@@ -137,74 +137,81 @@ impl<'a> PageWriter<'a> {
                 "titles".to_string() => outputformat.target.clone()
             ];
             let page_query = {
-                event!(Level::INFO, target = outputformat.target.as_str(), "API Service lock");
+                // event!(Level::INFO, target = outputformat.target.as_str(), "API Service lock");
                 API_SERVICE.get_lock().lock().await;
-                event!(Level::INFO, target = outputformat.target.as_str(), "API Service lock got");
+                // event!(Level::INFO, target = outputformat.target.as_str(), "API Service lock got");
                 API_SERVICE.get(&params).await
             };
             event!(Level::INFO, target = outputformat.target.as_str(), "page query got");
             if page_query.is_err() {
                 event!(Level::WARN, target = outputformat.target.as_str(), error = ?page_query.unwrap_err(), "cannot fetch page information");
             } else {
-                event!(Level::INFO, target = outputformat.target.as_str(), "checking prop");
+                // event!(Level::INFO, target = outputformat.target.as_str(), "checking prop");
                 let res = page_query.unwrap();
-                event!(Level::INFO, target = outputformat.target.as_str(), res = ?res);
+                // event!(Level::INFO, target = outputformat.target.as_str(), res = ?res);
                 let info = res["query"]["pages"].as_array().unwrap()[0].as_object().unwrap();
-                event!(Level::INFO, target = outputformat.target.as_str(), info = ?info);
+                // event!(Level::INFO, target = outputformat.target.as_str(), info = ?info);
                 if info.get("missing").is_some() {
                     event!(Level::INFO, target = outputformat.target.as_str(), "target page does not exist, skip");
                 } else if info.get("redirect").is_some() {
                     event!(Level::INFO, target = outputformat.target.as_str(), "target page is a redirect page, skip");
-                } else if let Some(denied_namespace) = self.denied_namespace {
-                    if denied_namespace.contains(&info["ns"].as_i64().unwrap()) {
-                        event!(Level::INFO, target = outputformat.target.as_str(), "target page is in disallowed namespace, skip");
-                    }
                 } else {
-                    event!(Level::INFO, target = outputformat.target.as_str(), "target page will write");
-                    // Not a redirect nor a missing page nor in a denied namespace, continue
-                    let mut executor = self.query_executor.lock().await;
-                    let result = executor.execute().await;
-                    // Prepare contents
-                    let summary = self.make_edit_summary(result);
-                    let mut content = self.make_header_content(result);
-                    content.push_str(&match result {
-                        Ok(ls) => {
-                            if ls.is_empty() {
-                                outputformat.empty.clone()
-                            } else {
-                                let list_size = ls.len();
-                                let mut output: String = String::new();
-                                output.push_str(&self.substitute_str_template(&outputformat.success.before, list_size));
-                                let item_str: String = join_all(ls.iter().enumerate().map(|(idx, t)| async move {
-                                    self.substitute_str_template_with_title(&outputformat.success.item, t, idx + 1, list_size).await
-                                })).await.join(&self.substitute_str_template(&outputformat.success.between, list_size));
-                                output.push_str(&item_str);
-                                output.push_str(&self.substitute_str_template(&outputformat.success.after, list_size));
-                                output
-                            }
-                        },
-                        Err(_) => outputformat.failure.clone(),
-                    });
-                    event!(Level::INFO, target = outputformat.target.as_str(), "content ready");
-                    // write to page
-                    let md5 = self.get_md5(&content);
-                    let params = hashmap![
-                        "action".to_string() => "edit".to_string(),
-                        "title".to_string() => outputformat.target.clone(),
-                        "text".to_string() => content,
-                        "summary".to_string() => summary,
-                        "md5".to_string() => md5,
-                        "nocreate".to_string() => "1".to_string(),
-                        "token".to_string() => API_SERVICE.csrf().await
-                    ];
-                    let edit_result = {
-                        API_SERVICE.get_lock().lock().await;
-                        API_SERVICE.post_edit(&params).await
+                    let deny_ns = {
+                        if let Some(denied_namespace) = self.denied_namespace {
+                            denied_namespace.clone()
+                        } else {
+                            HashSet::<NamespaceID>::new()
+                        }
                     };
-                    if edit_result.is_err() {
-                        event!(Level::WARN, target = outputformat.target.as_str(), error = ?edit_result.unwrap_err(), "cannot edit page");
+                    if deny_ns.contains(&info["ns"].as_i64().unwrap()) {
+                        event!(Level::INFO, target = outputformat.target.as_str(), "target page is in disallowed namespace, skip");
                     } else {
-                        event!(Level::INFO, target = outputformat.target.as_str(), "edit page successful");
+                        event!(Level::INFO, target = outputformat.target.as_str(), "target page will write");
+                        // Not a redirect nor a missing page nor in a denied namespace, continue
+                        let mut executor = self.query_executor.lock().await;
+                        let result = executor.execute().await;
+                        // Prepare contents
+                        let summary = self.make_edit_summary(result);
+                        let mut content = self.make_header_content(result);
+                        content.push_str(&match result {
+                            Ok(ls) => {
+                                if ls.is_empty() {
+                                    outputformat.empty.clone()
+                                } else {
+                                    let list_size = ls.len();
+                                    let mut output: String = String::new();
+                                    output.push_str(&self.substitute_str_template(&outputformat.success.before, list_size));
+                                    let item_str: String = join_all(ls.iter().enumerate().map(|(idx, t)| async move {
+                                        self.substitute_str_template_with_title(&outputformat.success.item, t, idx + 1, list_size).await
+                                    })).await.join(&self.substitute_str_template(&outputformat.success.between, list_size));
+                                    output.push_str(&item_str);
+                                    output.push_str(&self.substitute_str_template(&outputformat.success.after, list_size));
+                                    output
+                                }
+                            },
+                            Err(_) => outputformat.failure.clone(),
+                        });
+                        event!(Level::INFO, target = outputformat.target.as_str(), "content ready");
+                        // write to page
+                        let md5 = self.get_md5(&content);
+                        let params = hashmap![
+                            "action".to_string() => "edit".to_string(),
+                            "title".to_string() => outputformat.target.clone(),
+                            "text".to_string() => content,
+                            "summary".to_string() => summary,
+                            "md5".to_string() => md5,
+                            "nocreate".to_string() => "1".to_string(),
+                            "token".to_string() => API_SERVICE.csrf().await
+                        ];
+                        let edit_result = {
+                            API_SERVICE.get_lock().lock().await;
+                            API_SERVICE.post_edit(&params).await
+                        };
+                        if edit_result.is_err() {
+                            event!(Level::WARN, target = outputformat.target.as_str(), error = ?edit_result.unwrap_err(), "cannot edit page");
+                        } else {
+                            event!(Level::INFO, target = outputformat.target.as_str(), "edit page successful");
+                        }
                     }
                 }
             }
