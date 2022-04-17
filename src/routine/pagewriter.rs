@@ -159,7 +159,7 @@ impl<'a> PageWriter<'a> {
                 } else {
                     // Not a redirect nor a missing page nor in a denied namespace, continue
                     let mut executor = self.query_executor.lock().await;
-                    let result = executor.execute().await;
+                    let result = executor.execute().instrument(span!(Level::INFO, "query executor routine")).await;
                     // Prepare contents
                     let summary = self.make_edit_summary(result);
                     let mut content = self.make_header_content(result);
@@ -181,7 +181,7 @@ impl<'a> PageWriter<'a> {
                         },
                         Err(_) => outputformat.failure.clone(),
                     });
-                    event!(Level::INFO, "content ready");
+                    event!(Level::DEBUG, "content ready");
                     // write to page
                     let md5 = self.get_md5(&content);
                     let params = hashmap![
@@ -211,7 +211,7 @@ impl<'a> PageWriter<'a> {
         // Iterate through each page
         for outputformat in self.outputformat {
             self.write_by_output_format(outputformat)
-            .instrument(span!(Level::INFO, "Page writer routine for one", page = outputformat.target.as_str()))
+            .instrument(span!(Level::INFO, "page writer routine for one", page = outputformat.target.as_str()))
             .await;
         }
     }

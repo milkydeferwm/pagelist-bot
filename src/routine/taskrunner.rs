@@ -141,7 +141,7 @@ impl TaskRunner {
                         tokio::time::sleep(tokio::time::Duration::from_secs(10 * 60)).await;
                     }
                 }
-            }.instrument(span!(target: "Task Runner", Level::INFO, "Task runner routine", task_id = id)))
+            }.instrument(span!(target: "Task Runner", Level::INFO, "task runner routine", task_id = id)))
         };
         self.runnerhandle = Some(handler);
     }

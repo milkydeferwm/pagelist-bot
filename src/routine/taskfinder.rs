@@ -2,7 +2,7 @@ use std::{collections::{HashMap, HashSet}, sync::Arc};
 
 use mediawiki::{hashmap, api::NamespaceID};
 use tokio::{task::JoinHandle, sync::{RwLock, Mutex}};
-use tracing::{event, Level};
+use tracing::{event, Level, Instrument, span};
 
 use crate::API_SERVICE;
 
@@ -131,7 +131,7 @@ impl TaskFinder {
                                 task_pool.insert(pageid);
                             }
                         }
-                        event!(Level::INFO, "task gathered with {} tasks", task_pool.len());
+                        event!(Level::DEBUG, pool = ?task_pool, count = task_pool.len(), "task gathered");
                         {
                             let mut task_map = self.task_map.lock().await;
                             // kill all tasks whose id does not live in the pool
@@ -164,7 +164,7 @@ impl TaskFinder {
                 // sleep for a fixed 10 minutes
                 tokio::time::sleep(tokio::time::Duration::from_secs(10 * 60)).await;
             }
-        });
+        }.instrument(span!(target: "Task Finder", Level::INFO, "task finder routine")));
         let mut finderhandle = self.finderhandle.lock().await;
         *finderhandle = Some(handle);
     }
