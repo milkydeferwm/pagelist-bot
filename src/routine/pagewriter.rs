@@ -136,12 +136,7 @@ impl<'a> PageWriter<'a> {
                 "prop".to_string() => "info".to_string(),
                 "titles".to_string() => outputformat.target.clone()
             ];
-            let page_query = {
-                // event!(Level::INFO, target = outputformat.target.as_str(), "API Service lock");
-                API_SERVICE.get_lock().lock().await;
-                // event!(Level::INFO, target = outputformat.target.as_str(), "API Service lock got");
-                API_SERVICE.get(&params).await
-            };
+            let page_query = API_SERVICE.get(&params).await;
             event!(Level::INFO, target = outputformat.target.as_str(), "page query got");
             if page_query.is_err() {
                 event!(Level::WARN, target = outputformat.target.as_str(), error = ?page_query.unwrap_err(), "cannot fetch page information");
@@ -203,10 +198,7 @@ impl<'a> PageWriter<'a> {
                             "nocreate".to_string() => "1".to_string(),
                             "token".to_string() => API_SERVICE.csrf().await
                         ];
-                        let edit_result = {
-                            API_SERVICE.get_lock().lock().await;
-                            API_SERVICE.post_edit(&params).await
-                        };
+                        let edit_result = API_SERVICE.post_edit(&params).await;
                         if edit_result.is_err() {
                             event!(Level::WARN, target = outputformat.target.as_str(), error = ?edit_result.unwrap_err(), "cannot edit page");
                         } else {

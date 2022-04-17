@@ -65,10 +65,7 @@ impl TaskRunner {
                             "rvprop".to_string() => "content".to_string(),
                             "rvlimit".to_string() => "1".to_string()
                         ];
-                        let page_content = {
-                            API_SERVICE.get_lock().lock().await;
-                            API_SERVICE.get(&params).await
-                        };
+                        let page_content = API_SERVICE.get(&params).await;
 
                         if let Ok(page_content) = page_content {
                             event!(Level::INFO, "fetch task content successful");

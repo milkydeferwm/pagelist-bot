@@ -1,6 +1,6 @@
 //! API Service holds the MediaWiki API object.
 
-use std::{collections::HashMap, sync::Arc};
+use std::collections::HashMap;
 
 use mediawiki::{api::Api, media_wiki_error::MediaWikiError, title::Title};
 use serde_json::Value;
@@ -38,7 +38,6 @@ pub struct APIService {
     profile: Mutex<Option<SiteProfile>>,
 
     api: RwLock<Option<Api>>,
-    network_lock: Arc<Mutex<()>>,
     csrf: RwLock<String>,
 
     keepalivehandle: Mutex<Option<JoinHandle<()>>>,
@@ -52,7 +51,6 @@ impl APIService {
             login: Mutex::new(None),
             profile: Mutex::new(None),
             api: RwLock::new(None),
-            network_lock: Arc::new(Mutex::new(())),
             csrf: RwLock::new("".to_string()),
             keepalivehandle: Mutex::new(None),
         }
@@ -71,7 +69,7 @@ impl APIService {
 
     /// Send a request via GET
     pub async fn get(&self, params: &HashMap<String, String>) -> Result<Value, APIServiceError> {
-        let api = self.api.read().await;
+        let api = self.api.write().await;
         if let Some(api) = &*api {
             let mut params = params.clone();
             self.param_decorate(&mut params).await;
@@ -88,7 +86,7 @@ impl APIService {
 
     /// Send a request via GET
     pub async fn get_limit(&self, params: &HashMap<String, String>, max: Option<usize>) -> Result<Value, APIServiceError> {
-        let api = self.api.read().await;
+        let api = self.api.write().await;
         if let Some(api) = &*api {
             let mut params = params.clone();
             self.param_decorate(&mut params).await;
@@ -110,7 +108,7 @@ impl APIService {
 
     /// Send a request via POST
     pub async fn post(&self, params: &HashMap<String, String>) -> Result<Value, APIServiceError> {
-        let api = self.api.read().await;
+        let api = self.api.write().await;
         if let Some(api) = &*api {
             let mut params = params.to_owned();
             self.param_decorate(&mut params).await;
@@ -138,10 +136,6 @@ impl APIService {
     pub async fn csrf(&self) -> String {
         let self_csrf = self.csrf.read().await;
         (*self_csrf).clone()
-    }
-
-    pub fn get_lock(&self) -> Arc<Mutex<()>> {
-        self.network_lock.clone()
     }
 
     /// Convert Title object to full pretty title
@@ -246,63 +240,60 @@ impl APIService {
             let mut interval = tokio::time::interval(tokio::time::Duration::from_secs(60 * 60));
             loop {
                 interval.tick().await;
-                {
-                    // Require a lock
-                    let _ = self.network_lock.lock().await;
-                    let mut api = self.api.write().await;
-                    if let Some(api) = &mut *api {
-                        // Tries to send a request to check for login status
-                        let params = api.params_into(&[
-                            ("action", "query"),
-                            ("format", "json"),
-                            ("formatversion", "2"),
-                            ("assert", &{
-                                let lock = self.profile.lock().await;
-                                lock.as_ref().unwrap().assert.unwrap().to_string()
-                            }),
-                            ("assertuser", &{
-                                let lock = self.login.lock().await;
-                                lock.as_ref().unwrap().username.split('@').next().unwrap().to_string()
-                            }),
-                        ]);
-                        let response = api.get_query_api_json(&params).await;
-                        // Do nothing if a general client-side problem occurs
-                        if let Ok(response) = response {
-                            if response["error"].as_object().is_some() {
-                                // re-login
-                                let (username, password) = {
-                                    let lock = self.login.lock().await;
-                                    (lock.as_ref().unwrap().username.clone(), lock.as_ref().unwrap().password.clone())
-                                };
-                                let _ = api.login(&username, &password).await;
-                                if let Ok(csrf) = api.get_edit_token().await {
-                                    let mut self_csrf = self.csrf.write().await;
-                                    *self_csrf = csrf;
-                                }
-                            }
-                        }
-                    } else {
-                        // Try to initialize the API object...
-                        let api_url = {
+                // Require a lock
+                let mut api = self.api.write().await;
+                if let Some(api) = &mut *api {
+                    // Tries to send a request to check for login status
+                    let params = api.params_into(&[
+                        ("action", "query"),
+                        ("format", "json"),
+                        ("formatversion", "2"),
+                        ("assert", &{
                             let lock = self.profile.lock().await;
-                            lock.as_ref().unwrap().api.clone()
-                        };
-                        let (username, password) = {
+                            lock.as_ref().unwrap().assert.unwrap().to_string()
+                        }),
+                        ("assertuser", &{
                             let lock = self.login.lock().await;
-                            (lock.as_ref().unwrap().username.clone(), lock.as_ref().unwrap().password.clone())
-                        };
-                        let api_obj = Api::new(&api_url).await;
-                        if let Ok(mut api_obj) = api_obj {
-                            api_obj.set_maxlag(Some(5));
-                            api_obj.set_max_retry_attempts(3);
-                            api_obj.set_user_agent(format!("Page List Bot / via User:{}", username.split('@').next().unwrap()));
-                            let _ = api_obj.login(&username, &password).await;
-                            if let Ok(csrf) = api_obj.get_edit_token().await {
+                            lock.as_ref().unwrap().username.split('@').next().unwrap().to_string()
+                        }),
+                    ]);
+                    let response = api.get_query_api_json(&params).await;
+                    // Do nothing if a general client-side problem occurs
+                    if let Ok(response) = response {
+                        if response["error"].as_object().is_some() {
+                            // re-login
+                            let (username, password) = {
+                                let lock = self.login.lock().await;
+                                (lock.as_ref().unwrap().username.clone(), lock.as_ref().unwrap().password.clone())
+                            };
+                            let _ = api.login(&username, &password).await;
+                            if let Ok(csrf) = api.get_edit_token().await {
                                 let mut self_csrf = self.csrf.write().await;
                                 *self_csrf = csrf;
                             }
-                            *api = Some(api_obj);
                         }
+                    }
+                } else {
+                    // Try to initialize the API object...
+                    let api_url = {
+                        let lock = self.profile.lock().await;
+                        lock.as_ref().unwrap().api.clone()
+                    };
+                    let (username, password) = {
+                        let lock = self.login.lock().await;
+                        (lock.as_ref().unwrap().username.clone(), lock.as_ref().unwrap().password.clone())
+                    };
+                    let api_obj = Api::new(&api_url).await;
+                    if let Ok(mut api_obj) = api_obj {
+                        api_obj.set_maxlag(Some(5));
+                        api_obj.set_max_retry_attempts(3);
+                        api_obj.set_user_agent(format!("Page List Bot / via User:{}", username.split('@').next().unwrap()));
+                        let _ = api_obj.login(&username, &password).await;
+                        if let Ok(csrf) = api_obj.get_edit_token().await {
+                            let mut self_csrf = self.csrf.write().await;
+                            *self_csrf = csrf;
+                        }
+                        *api = Some(api_obj);
                     }
                 }
             }

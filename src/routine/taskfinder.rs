@@ -61,10 +61,7 @@ impl TaskFinder {
                         "rvprop".to_string() => "content".to_string(),
                         "rvlimit".to_string() => "1".to_string()
                     ];
-                    let page_content = {
-                        API_SERVICE.get_lock().lock().await;
-                        API_SERVICE.get(&params).await
-                    };
+                    let page_content = API_SERVICE.get(&params).await;
                     if let Ok(page_content) = page_content {
                         let page_content_str = page_content["query"]["pages"][0]["revisions"][0]["slots"]["main"]["content"].as_str();
                         if let Some(page_content_str) = page_content_str {
@@ -116,10 +113,7 @@ impl TaskFinder {
                         "gaplimit".to_string() => "max".to_string(),
                         "gapfilterredir".to_string() => "nonredirects".to_string()
                     ];
-                    let tasks = {
-                        API_SERVICE.get_lock().lock().await;
-                        API_SERVICE.get_all(&params).await
-                    };
+                    let tasks = API_SERVICE.get_all(&params).await;
                     if let Ok(tasks_result) = tasks {
                         let tasks = tasks_result["query"]["pages"].as_array().unwrap();
                         // gather all tasks
