@@ -5,6 +5,7 @@ use std::collections::HashMap;
 use mediawiki::{api::Api, media_wiki_error::MediaWikiError, title::Title};
 use serde_json::Value;
 use tokio::{sync::{Mutex, RwLock}, task::JoinHandle};
+use tracing::{event, Level, span, Instrument, instrument};
 use crate::types::{LoginCredential, SiteProfile};
 
 #[derive(Debug)]
@@ -33,6 +34,7 @@ impl core::fmt::Display for APIServiceError {
     }
 }
 
+#[derive(Debug)]
 pub struct APIService {
     login: Mutex<Option<LoginCredential>>,
     profile: Mutex<Option<SiteProfile>>,
@@ -206,8 +208,10 @@ impl APIService {
         }
     }
 
+    #[instrument(target = "API Service", level = "info", name = "API initiator")]
     pub async fn try_init(&'static self) {
         _ = tokio::task::spawn_blocking(|| self.stop()).await;
+        event!(Level::INFO, "initiating API");
         // Try to initialize the API object...
         let api_url = {
             let lock = self.profile.lock().await;
@@ -229,6 +233,8 @@ impl APIService {
             }
             let mut api = self.api.write().await;
             *api = Some(api_obj);
+        } else {
+            event!(Level::WARN, error = ?api_obj.unwrap_err(), "cannot initiate API");
         }
     }
 
@@ -240,6 +246,7 @@ impl APIService {
             let mut interval = tokio::time::interval(tokio::time::Duration::from_secs(60 * 60));
             loop {
                 interval.tick().await;
+                event!(Level::INFO, "API checking start");
                 // Require a lock
                 let mut api = self.api.write().await;
                 if let Some(api) = &mut *api {
@@ -261,6 +268,7 @@ impl APIService {
                     // Do nothing if a general client-side problem occurs
                     if let Ok(response) = response {
                         if response["error"].as_object().is_some() {
+                            event!(Level::INFO, "API expired, re-login");
                             // re-login
                             let (username, password) = {
                                 let lock = self.login.lock().await;
@@ -271,9 +279,14 @@ impl APIService {
                                 let mut self_csrf = self.csrf.write().await;
                                 *self_csrf = csrf;
                             }
+                        } else {
+                            event!(Level::INFO, "API valid");
                         }
+                    } else {
+                        event!(Level::WARN, error = ?response.unwrap_err(), "cannot check API status");
                     }
                 } else {
+                    event!(Level::INFO, "API not initiated, initiating");
                     // Try to initialize the API object...
                     let api_url = {
                         let lock = self.profile.lock().await;
@@ -294,10 +307,12 @@ impl APIService {
                             *self_csrf = csrf;
                         }
                         *api = Some(api_obj);
+                    } else {
+                        event!(Level::WARN, error = ?api_obj.unwrap_err(), "cannot initiate API");
                     }
                 }
             }
-        });
+        }.instrument(span!(target: "API Service", Level::INFO, "API checker")));
         let mut keepalivehandle = self.keepalivehandle.lock().await;
         *keepalivehandle = Some(handle);
     }
@@ -306,6 +321,7 @@ impl APIService {
     fn stop(&self) {
         let mut keepalivehandle = self.keepalivehandle.blocking_lock();
         if let Some(handle) = &*keepalivehandle {
+            event!(Level::INFO, "stopping existing keep alive routine");
             handle.abort();
         }
         *keepalivehandle = None;
