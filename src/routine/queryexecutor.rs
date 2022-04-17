@@ -1,6 +1,7 @@
 use mediawiki::title::Title;
 use tracing::{event, Level};
 
+use crate::API_SERVICE;
 use super::types::TaskConfig;
 
 pub enum QueryExecutorError {
@@ -33,6 +34,7 @@ impl QueryExecutor {
             } else {
                 let query_inst = parse_result.unwrap();
                 let query_result = {
+                    API_SERVICE.get_lock().lock().await;
                     tokio::time::timeout(tokio::time::Duration::from_secs(self.querylimit.timeout), crate::solver::solve_api(&query_inst, self.querylimit.querylimit)).await
                 };
 
