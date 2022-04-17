@@ -211,7 +211,7 @@ impl<'a> PageWriter<'a> {
         // Iterate through each page
         for outputformat in self.outputformat {
             self.write_by_output_format(outputformat)
-            .instrument(span!(Level::INFO, "PageWriter", page = outputformat.target.as_str()))
+            .instrument(span!(Level::INFO, "Page writer routine for one", page = outputformat.target.as_str()))
             .await;
         }
     }

@@ -4,7 +4,7 @@ use std::{sync::Arc, collections::HashSet};
 use mediawiki::api::NamespaceID;
 use mediawiki::hashmap;
 use tokio::{task::JoinHandle, sync::RwLock};
-use tracing::{event, Level};
+use tracing::{event, Level, Instrument, span};
 
 use crate::API_SERVICE;
 
@@ -71,8 +71,6 @@ impl TaskRunner {
                         };
 
                         if let Ok(page_content) = page_content {
-                            event!(Level::INFO, "fetch task content successful");
-                            //let page_content = page_content.unwrap();
                             let page_content_str = page_content["query"]["pages"][0]["revisions"][0]["slots"]["main"]["content"].as_str();
                             if let Some(page_content_str) = page_content_str {
                                 let task = serde_json::from_str(page_content_str);
@@ -98,7 +96,6 @@ impl TaskRunner {
                         };
                         // run the task only if bot is globally activated, the task is activated, and the runner is aligned to cron
                         if global_activated && task.activate && aligned_to_cron {
-                            event!(Level::INFO, "task activated");
                             let task_config = {
                                 let value = global_query_config.read().await;
                                 let timeout = task.timeout.unwrap_or(value.timeout);
@@ -118,7 +115,7 @@ impl TaskRunner {
                                 .set_output_format(&task.output)
                                 .set_denied_namespace(&denied_ns)
                                 .set_header_template_name(&output_header);
-                            writer.start().await;
+                            writer.start().instrument(span!(Level::INFO, "Page writer")).await;
                         }
                         // sleep until next cron time
                         let schedule = cron::Schedule::from_str(&task.cron);
@@ -133,16 +130,18 @@ impl TaskRunner {
                             // need to re-align later
                             aligned_to_cron = false;
                             // retry in 10 minutes
+                            event!(Level::INFO, "task will retry in 10 minutes");
                             tokio::time::sleep(tokio::time::Duration::from_secs(10 * 60)).await;
                         }
                     } else {
                         // need to re-align later
                         aligned_to_cron = false;
                         // retry in 10 minutes
+                        event!(Level::INFO, "task will retry in 10 minutes");
                         tokio::time::sleep(tokio::time::Duration::from_secs(10 * 60)).await;
                     }
                 }
-            })
+            }.instrument(span!(target: "Task Runner", Level::INFO, "Task runner routine", task_id = id)))
         };
         self.runnerhandle = Some(handler);
     }

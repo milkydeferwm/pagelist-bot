@@ -58,6 +58,7 @@ impl QueryExecutor {
                         });
                         self.result = Some(Ok(titles_vec));
                     }
+                    event!(Level::INFO, "query successful");
                 }
             }
         }
