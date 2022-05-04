@@ -113,6 +113,7 @@ impl TaskRunner {
                             let writer = PageWriter::new(QueryExecutor::new(&task.expr, &task_config))
                                 .set_task_id(id)
                                 .set_output_format(&task.output)
+                                .set_eager_mode(task.eager.unwrap_or(false))
                                 .set_denied_namespace(&denied_ns)
                                 .set_header_template_name(&output_header);
                             writer.start().instrument(span!(Level::INFO, "Page writer")).await;

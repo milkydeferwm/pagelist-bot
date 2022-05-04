@@ -28,6 +28,7 @@ pub struct TaskInfo {
     pub description: String,
     pub expr: String,
     pub cron: String,
+    pub eager: Option<bool>,
     pub timeout: Option<u64>,
     pub querylimit: Option<i64>,
     pub output: Vec<OutputFormat>,

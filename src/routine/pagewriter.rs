@@ -12,6 +12,7 @@ use crate::API_SERVICE;
 pub(crate) struct PageWriter<'a> {
     task_id: i64,
     query_executor: Mutex<QueryExecutor>,
+    eager_mode: bool,
     denied_namespace: Option<&'a HashSet<NamespaceID>>,
     outputformat: &'a [OutputFormat],
     header_template_name: &'a str,
@@ -23,6 +24,7 @@ impl<'a> PageWriter<'a> {
         PageWriter {
             task_id: 0,
             query_executor: Mutex::new(query_exec),
+            eager_mode: false,
             denied_namespace: None,
             outputformat: &[],
             header_template_name: "",
@@ -46,6 +48,11 @@ impl<'a> PageWriter<'a> {
 
     pub fn set_header_template_name(mut self, template: &'a str) -> Self {
         self.header_template_name = template;
+        self
+    }
+
+    pub fn set_eager_mode(mut self, eager: bool) -> Self {
+        self.eager_mode = eager;
         self
     }
 
@@ -162,45 +169,115 @@ impl<'a> PageWriter<'a> {
                     let result = executor.execute().instrument(span!(Level::INFO, "query executor routine")).await;
                     // Prepare contents
                     let summary = self.make_edit_summary(result);
-                    let mut content = self.make_header_content(result);
-                    content.push_str(&match result {
-                        Ok(ls) => {
-                            if ls.is_empty() {
-                                outputformat.empty.clone()
+                    let content: Result<String, ()> = {
+                        let mut content = self.make_header_content(result);
+                        let body = match result {
+                            Ok(ls) => {
+                                if ls.is_empty() {
+                                    Ok(outputformat.empty.clone())
+                                } else {
+                                    let list_size = ls.len();
+                                    let mut output: String = String::new();
+                                    output.push_str(&self.substitute_str_template(&outputformat.success.before, list_size));
+                                    let item_str: String = join_all(ls.iter().enumerate().map(|(idx, t)| async move {
+                                        self.substitute_str_template_with_title(&outputformat.success.item, t, idx + 1, list_size).await
+                                    })).await.join(&self.substitute_str_template(&outputformat.success.between, list_size));
+                                    output.push_str(&item_str);
+                                    output.push_str(&self.substitute_str_template(&outputformat.success.after, list_size));
+                                    Ok(output)
+                                }
+                            },
+                            Err(_) => {
+                                if self.eager_mode {
+                                    Ok(outputformat.failure.clone())
+                                } else {
+                                    Err(())
+                                }
+                            },
+                        };
+
+                        if let Ok(body) = body {
+                            content.push_str(&body);
+                            Ok(content)
+                        } else {
+                            // Fetch the original content of the target page
+                            let orig_content = {
+                                let params = hashmap![
+                                    "action".to_string() => "query".to_string(),
+                                    "prop".to_string() => "revisions".to_string(),
+                                    "titles".to_string() => outputformat.target.clone(),
+                                    "rvslots".to_string() => "*".to_string(),
+                                    "rvprop".to_string() => "content".to_string(),
+                                    "rvlimit".to_string() => "1".to_string()
+                                ];
+                                let page_content = {
+                                    API_SERVICE.get_lock().lock().await;
+                                    API_SERVICE.get(&params).await
+                                };
+                                if let Ok(page_content) = page_content {
+                                    let page_content_str = page_content["query"]["pages"][0]["revisions"][0]["slots"]["main"]["content"].as_str();
+                                    if let Some(page_content_str) = page_content_str {
+                                        Ok(page_content_str.to_owned())
+                                    } else {
+                                        event!(Level::WARN, response = ?page_content, "cannot find page content in response");
+                                        Err(())
+                                    }
+                                } else {
+                                    event!(Level::WARN, error = ?page_content.unwrap_err(), "cannot fetch original target page content");
+                                    Err(())
+                                }
+                            };
+
+                            if let Ok(orig_content) = orig_content {
+                                // The page content, when trimmed from start, should start with <noinclude>
+                                // If that is the case, copy everything after the first </noinclude> if it exists
+                                // Otherwise, just copy the whole page
+                                if orig_content.trim_start().starts_with("<noinclude>") {
+                                    // If the remaining parts has a pairing </noinclude>, copy everything after the first </noinclude>
+                                    // Otherwise copy the whole page
+                                    // Cannot defend against some complicated scenarios such as </noinclude> in comments, in <nowiki> tags, etc
+                                    // Luckily if the original content is generated by the bot this will not be a problem
+                                    if let Some(offset) = orig_content.find("</noinclude>") {
+                                        content.push_str(&orig_content[offset + "</noinclude>".len()..]);
+                                        Ok(content)
+                                    } else {
+                                        content.push_str(&orig_content);
+                                        Ok(content)
+                                    }
+                                } else {
+                                    content.push_str(&orig_content);
+                                    Ok(content)
+                                }
                             } else {
-                                let list_size = ls.len();
-                                let mut output: String = String::new();
-                                output.push_str(&self.substitute_str_template(&outputformat.success.before, list_size));
-                                let item_str: String = join_all(ls.iter().enumerate().map(|(idx, t)| async move {
-                                    self.substitute_str_template_with_title(&outputformat.success.item, t, idx + 1, list_size).await
-                                })).await.join(&self.substitute_str_template(&outputformat.success.between, list_size));
-                                output.push_str(&item_str);
-                                output.push_str(&self.substitute_str_template(&outputformat.success.after, list_size));
-                                output
+                                Err(())
                             }
-                        },
-                        Err(_) => outputformat.failure.clone(),
-                    });
-                    event!(Level::DEBUG, "content ready");
-                    // write to page
-                    let md5 = self.get_md5(&content);
-                    let params = hashmap![
-                        "action".to_string() => "edit".to_string(),
-                        "title".to_string() => outputformat.target.clone(),
-                        "text".to_string() => content,
-                        "summary".to_string() => summary,
-                        "md5".to_string() => md5,
-                        "nocreate".to_string() => "1".to_string(),
-                        "token".to_string() => API_SERVICE.csrf().await
-                    ];
-                    let edit_result = {
-                        API_SERVICE.get_lock().lock().await;
-                        API_SERVICE.post_edit(&params).await
+                        }
                     };
-                    if edit_result.is_err() {
-                        event!(Level::WARN, error = ?edit_result.unwrap_err(), "cannot edit page");
+                    
+                    if let Ok(content) = content {
+                        event!(Level::DEBUG, "content ready");
+                        // write to page
+                        let md5 = self.get_md5(&content);
+                        let params = hashmap![
+                            "action".to_string() => "edit".to_string(),
+                            "title".to_string() => outputformat.target.clone(),
+                            "text".to_string() => content,
+                            "summary".to_string() => summary,
+                            "md5".to_string() => md5,
+                            "nocreate".to_string() => "1".to_string(),
+                            "token".to_string() => API_SERVICE.csrf().await
+                        ];
+                        let edit_result = {
+                            API_SERVICE.get_lock().lock().await;
+                            API_SERVICE.post_edit(&params).await
+                        };
+                        if edit_result.is_err() {
+                            event!(Level::WARN, error = ?edit_result.unwrap_err(), "cannot edit page");
+                        } else {
+                            event!(Level::INFO, "edit page successful");
+                        }
                     } else {
-                        event!(Level::INFO, "edit page successful");
+                        event!(Level::WARN, "page edit cancelled");
                     }
                 }
             }
