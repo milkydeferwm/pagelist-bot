@@ -28,11 +28,13 @@ async fn main() {
     let file_appender = tracing_appender::rolling::daily(format!("logs/{}", args.value_of("profile").unwrap()), "plbot.log");
     let (non_blocking, _guard) = tracing_appender::non_blocking(file_appender);
     tracing_subscriber::registry()
+    /*
         .with(
             tracing_subscriber::fmt::layer()
                 .with_span_events(FmtSpan::NONE)
                 .with_filter(filter::LevelFilter::INFO)
         )
+    */
         .with(
             tracing_subscriber::fmt::layer()
                 .with_writer(non_blocking)
