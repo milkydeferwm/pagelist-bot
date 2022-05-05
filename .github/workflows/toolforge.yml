@@ -18,7 +18,7 @@ jobs:
       - name: Install Dependencies
         run: |
           apt-get update
-          apt-get -y install build-essential pkg-config libssl libssl-dev
+          apt-get -y install build-essential pkg-config libssl1.1 libssl1.1-dev
       - name: Install Rust Toolchain
         uses: actions-rs/toolchain@v1
         with:
