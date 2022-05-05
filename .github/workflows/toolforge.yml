@@ -1,0 +1,30 @@
+name: Build Toolforge
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    container:
+      image: docker-registry.tools.wmflabs.org/toolforge-bullseye-standalone:latest
+      env:
+        CARGO_TERM_COLOR: always
+        RUSTFLAGS: -D warnings
+
+    steps:
+      - uses: actions/checkout@v3
+      - name: Install Rust Toolchain
+        uses: actions-rs/toolchain@v1
+        with:
+          toolchain: stable
+      - name: Build
+        uses: actions-rs/cargo@v1
+        with:
+          command: build
+          args: --release
+      - name: Upload
+        uses: actions/upload-artifact@v2
+        with:
+          name: pagelistbot
+          path: target/release/pagelist-bot
