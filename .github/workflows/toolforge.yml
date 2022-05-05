@@ -16,7 +16,9 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v3
       - name: Install cURL
-        run: apt-get install curl
+        run: |
+          apt-get update
+          apt-get -y install curl
       - name: Install Rust Toolchain
         uses: actions-rs/toolchain@v1
         with:
