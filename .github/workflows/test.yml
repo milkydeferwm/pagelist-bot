@@ -5,12 +5,12 @@ on:
     branches: [ main ]
     paths-ignore:
       - '.github/workflows/*'
-      - '!.github/workflows/rust.yml'
+      - '!.github/workflows/test.yml'
   pull_request:
     branches: [ main ]
     paths-ignore:
       - '.github/workflows/*'
-      - '!.github/workflows/rust.yml'
+      - '!.github/workflows/test.yml'
 
 env:
   CARGO_TERM_COLOR: always
