@@ -3,7 +3,7 @@
 
 This is the source code for an automatic bot that generates a list of pages dedicated to MediaWiki.
 
-**This repository is frozen, no bug fixes or feature additions will be made. A thorough revamp is ongoing at [milkydeferwm/pagelistbot](https://github.com/milkydeferwm/pagelistbot/actions/workflows/test.yml).**
+**This repository is frozen, no bug fixes or feature additions will be made. A thorough revamp is ongoing at [milkydeferwm/pagelistbot](https://github.com/milkydeferwm/pagelistbot).**
 
 ## Usage
 Command syntax:
