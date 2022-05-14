@@ -1,7 +1,9 @@
 # Page List Bot
-[![Build Test](https://github.com/milkydeferwm/pagelist-bot/actions/workflows/rust.yml/badge.svg)](https://github.com/milkydeferwm/pagelist-bot/actions/workflows/rust.yml)
+[![Build Test](https://github.com/milkydeferwm/pagelist-bot/actions/workflows/test.yml/badge.svg)](https://github.com/milkydeferwm/pagelist-bot/actions/workflows/test.yml)
 
 This is the source code for an automatic bot that generates a list of pages dedicated to MediaWiki.
+
+**This repository is frozen, no bug fixes or feature additions will be made. A thorough revamp is ongoing at [milkydeferwm/pagelistbot](https://github.com/milkydeferwm/pagelistbot/actions/workflows/test.yml).**
 
 ## Usage
 Command syntax:
